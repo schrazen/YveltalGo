@@ -1,4 +1,4 @@
-# PokeGrinder
+# YveltalGo
 
 Automated, multi-account PokéMeow automation suite equipped with an intelligent battle engine, neural network captcha solver, humanized anti-detection pacing, and a modern Electron/React desktop dashboard.
 
