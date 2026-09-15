@@ -1,0 +1,162 @@
+{
+  "_SCHEMA_VERSION_": 2,
+  "_STRUCTURE_OVERVIEW_": "This file is split into two big sections: GLOBAL SETTINGS and ACCOUNTS. Put shared defaults at root-level global keys. Put per-token settings only inside Accounts.",
+
+  "_GLOBAL_SETTINGS_SECTION_": "==================== GLOBAL SETTINGS (SHARED BY ALL ACCOUNTS) ====================",
+  "_GLOBAL_COMMENT_": "PokeGrinder Config",
+  "ClearConsole": true,
+  "SuspicionAvoidance": 250,
+
+  "RequiredServerID": 0,
+  "_REQUIRED_SERVER_ID_": "Global default server lock. 0 disables lock. Per-account RequiredServerID can override this.",
+
+  "Cooldowns": {
+    "FishingCooldown": 22.4,
+    "HuntingCooldown": 8.4,
+    "RetryCooldown": 3
+  },
+  "Delays": {
+    "FishingDelayMax": 65,
+    "FishingDelayMin": 28,
+    "HuntingDelayMax": 28,
+    "HuntingDelayMin": 12,
+    "PostCatchDelayMax": 10,
+    "PostCatchDelayMin": 4,
+    "_COMMENT2_": "Post-action delay before next cycle (reduces captcha risk). Higher = less bot-like.",
+    "_COMMENT_": "HUNTING: min/max delay (seconds) between command and response. FISHING: min/max delay after cooldown."
+  },
+
+  "AntiDetection": {
+    "EnableAntiDetectionMode": true,
+    "MinActionDelaySeconds": 2.0,
+    "_COMMENT_": "False = fast grind (high captcha risk). True = slow grind (low captcha risk).",
+    "_MIN_DELAY_": "Minimum seconds between actions. Recommended 1.5-2.5 for safer pacing."
+  },
+  "HumanBreaks": {
+    "Enabled": true,
+    "LongBreakDurationMaxSeconds": 300,
+    "LongBreakDurationMinSeconds": 120,
+    "LongBreakEveryMaxSeconds": 600,
+    "LongBreakEveryMinSeconds": 300,
+    "ShortBreakDurationMaxSeconds": 90,
+    "ShortBreakDurationMinSeconds": 30,
+    "ShortBreakEveryMaxSeconds": 180,
+    "ShortBreakEveryMinSeconds": 90,
+    "_COMMENT_": "Random idle pauses to reduce repetitive loop patterns."
+  },
+
+  "BerryDefaults": {
+    "Channel": 0,
+    "Enabled": true
+  },
+  "WorldBossDefaults": {
+    "Channel": 0,
+    "DangerHPPercent": 40,
+    "DryRun": false,
+    "Enabled": false,
+    "MaxIdleSeconds": 120
+  },
+  "AutoFightDefaults": {
+    "Enabled": false,
+    "Channel": 0,
+    "OnCommand": ";autofight on",
+    "OffCommand": ";autofight off",
+    "_DESCRIPTION_": "AutoFight supports: ;autofight on/off/stop, ;autofight run <count> <mode> [EV|LEVEL], ;autofight once [mode] [EV|LEVEL]."
+  },
+
+  "CaptchaAlerts": {
+    "CooldownSeconds": 10,
+    "Enabled": false,
+    "ChannelID": 0,
+    "Ping": "",
+    "WebhookURL": ""
+  },
+  "CaptchaAnswerer": {
+    "AutoAnswerEnabled": true,
+    "MaxAutoAttempts": 3,
+    "ManualAnswerAllowedUserIDs": [],
+    "_COMMENT_": "If ManualAnswerAllowedUserIDs is empty, anyone in captcha channel can use 'answer <digits>'."
+  },
+
+  "_ACCOUNTS_SECTION_": "==================== ACCOUNTS (PER-USER / PER-TOKEN SETTINGS) ====================",
+  "_ACCOUNTS_COMMENT_": "Add every Discord token under Accounts. Do not place token blocks at root level.",
+  "Accounts": {
+    "PASTE_DISCORD_TOKEN_HERE": {
+      "AutoBuy": {
+        "gb": 50,
+        "mb": 1,
+        "pb": 100,
+        "ub": 5
+      },
+      "AutoHoldEgg": true,
+      "AutoReleaseDuplicates": 100,
+      "Balls": {
+        "Common": "pb",
+        "Legendary": "mb",
+        "Rare": "gb",
+        "Shiny": "mb",
+        "Shiny Event": "mb",
+        "Shiny Full-odds": "prb",
+        "Super Rare": "ub",
+        "Uncommon": "pb"
+      },
+      "Berry": {
+        "Channel": 0,
+        "Enabled": true
+      },
+      "CustomDelays": {
+        "FishingDelayMax": null,
+        "FishingDelayMin": null,
+        "HuntingDelayMax": null,
+        "HuntingDelayMin": null,
+        "PostCatchDelayMax": null,
+        "PostCatchDelayMin": null
+      },
+      "EggHatching": true,
+      "ExceptionBalls": {
+        "Crystal Onix": "mb"
+      },
+      "FishBalls": {
+        "Common": "pb",
+        "Golden": "mb",
+        "Legendary": "db",
+        "Rare": "ub",
+        "Shiny": "mb",
+        "Super Rare": "ub",
+        "Uncommon": "gb"
+      },
+      "FishingChannel": 0,
+      "HuntingChannel": 0,
+
+      "RequiredServerID": 0,
+      "CaptchaAlerts": {
+        "CooldownSeconds": 60,
+        "Enabled": false,
+        "ChannelID": 0,
+        "Ping": "",
+        "WebhookURL": ""
+      },
+      "CaptchaAnswerer": {
+        "AutoAnswerEnabled": true,
+        "MaxAutoAttempts": 3,
+        "ManualAnswerAllowedUserIDs": []
+      },
+
+      "WorldBoss": {
+        "Channel": 0,
+        "DangerHPPercent": 40,
+        "DryRun": true,
+        "Enabled": false,
+        "MaxIdleSeconds": 120
+      },
+      "AutoFight": {
+        "Enabled": false,
+        "Channel": 0,
+        "OnCommand": ";autofight on",
+        "OffCommand": ";autofight off",
+        "_DESCRIPTION_": "Per-account AutoFight channel and toggle commands. Runtime also supports run/once/stop commands in-channel."
+      },
+      "_OPTIONAL_DELAYS_": "Override global delays. Omit to use Delays section defaults."
+    }
+  }
+}

@@ -1,0 +1,257 @@
+.sakura-theme {
+  --sakura-ink: #fee2e2;
+  --sakura-muted: #fda4af;
+  --sakura-panel: rgba(10, 1, 2, 0.86);
+  --sakura-panel-strong: rgba(15, 3, 4, 0.92);
+  --sakura-border: rgba(56, 13, 22, 0.95);
+  --sakura-accent: #e11d48;
+  --sakura-accent-soft: #be123c;
+  --sakura-bg-1: #030000;
+  --sakura-bg-2: #0a0102;
+
+  position: relative;
+  overflow-x: hidden;
+  color: var(--sakura-ink);
+  font-family: "Bahnschrift", "Segoe UI Variable Display", "Trebuchet MS", sans-serif;
+  background:
+    radial-gradient(circle at 90% 4%, rgba(225, 29, 72, 0.14) 0, rgba(225, 29, 72, 0) 50%),
+    radial-gradient(circle at 8% 12%, rgba(136, 19, 55, 0.16) 0, rgba(136, 19, 55, 0) 40%),
+    linear-gradient(140deg, #030000, #0a0102 55%, #110305);
+}
+
+.sakura-theme::before,
+.sakura-theme::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.sakura-theme::before {
+  width: 360px;
+  height: 360px;
+  top: -140px;
+  right: -120px;
+  border-radius: 999px;
+  background: radial-gradient(circle at center, rgba(225, 29, 72, 0.2), rgba(225, 29, 72, 0));
+  animation: sakuraFloat 8s ease-in-out infinite;
+}
+
+.sakura-theme::after {
+  width: 280px;
+  height: 280px;
+  bottom: -120px;
+  left: -80px;
+  border-radius: 999px;
+  background: radial-gradient(circle at center, rgba(136, 19, 55, 0.22), rgba(136, 19, 55, 0));
+  animation: sakuraFloat 10s ease-in-out infinite reverse;
+}
+
+.sakura-theme .max-w-7xl {
+  position: relative;
+  z-index: 1;
+}
+
+.sakura-theme aside {
+  box-shadow: 10px 0 32px rgba(10, 5, 8, 0.55);
+}
+
+.sakura-theme main {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(225, 29, 72, 0.5) rgba(18, 2, 4, 0.8);
+}
+
+.sakura-theme main::-webkit-scrollbar {
+  width: 10px;
+}
+
+.sakura-theme main::-webkit-scrollbar-track {
+  background: rgba(18, 2, 4, 0.8);
+}
+
+.sakura-theme main::-webkit-scrollbar-thumb {
+  background: rgba(225, 29, 72, 0.55);
+  border-radius: 6px;
+  border: 2px solid rgba(18, 2, 4, 0.8);
+}
+
+.sakura-theme h1,
+.sakura-theme h2,
+.sakura-theme h3 {
+  font-family: "Bahnschrift", "Segoe UI Variable Display", "Trebuchet MS", sans-serif;
+  letter-spacing: 0.01em;
+}
+
+.sakura-theme .sakura-panel,
+.sakura-theme .bg-slate-900,
+.sakura-theme .bg-\[\#0f172a\] {
+  background: var(--sakura-panel) !important;
+  border-color: var(--sakura-border) !important;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(5px);
+}
+
+.sakura-theme .rounded-3xl {
+  border-radius: 1.45rem;
+}
+
+.sakura-theme .shadow-md,
+.sakura-theme .shadow-lg,
+.sakura-theme .shadow-xl {
+  box-shadow: 0 12px 26px rgba(12, 6, 10, 0.5) !important;
+}
+
+.sakura-theme .bg-slate-950,
+.sakura-theme .bg-\[\#0b1220\],
+.sakura-theme .bg-slate-800,
+.sakura-theme .bg-slate-900\/60,
+.sakura-theme .bg-slate-900\/70,
+.sakura-theme .bg-slate-950\/60,
+.sakura-theme .bg-slate-800\/50,
+.sakura-theme .bg-slate-800\/40,
+.sakura-theme .bg-slate-700\/40,
+.sakura-theme .bg-slate-700\/50 {
+  background: var(--sakura-panel-strong) !important;
+  border-color: rgba(222, 152, 178, 0.35) !important;
+}
+
+.sakura-theme .border-slate-800,
+.sakura-theme .border-slate-700,
+.sakura-theme .border-slate-600,
+.sakura-theme .divide-slate-800 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(56, 13, 22, 0.9) !important;
+}
+
+.sakura-theme .text-slate-100,
+.sakura-theme .text-slate-200,
+.sakura-theme .text-white {
+  color: var(--sakura-ink) !important;
+}
+
+.sakura-theme .text-slate-300,
+.sakura-theme .text-slate-400,
+.sakura-theme .text-slate-500 {
+  color: var(--sakura-muted) !important;
+}
+
+.sakura-theme .text-cyan-300,
+.sakura-theme .text-cyan-400 {
+  color: #f43f5e !important;
+}
+
+.sakura-theme .bg-cyan-600,
+.sakura-theme .bg-cyan-500 {
+  background: linear-gradient(135deg, #e11d48, #be123c) !important;
+  border-color: #e11d48 !important;
+  color: #fff1f2 !important;
+}
+
+.sakura-theme .text-emerald-300,
+.sakura-theme .text-emerald-400 {
+  color: #f43f5e !important;
+}
+
+.sakura-theme .bg-emerald-500\/10,
+.sakura-theme .bg-emerald-600,
+.sakura-theme .bg-emerald-500 {
+  background: rgba(225, 29, 72, 0.15) !important;
+  border-color: rgba(225, 29, 72, 0.35) !important;
+  color: #f43f5e !important;
+}
+
+.sakura-theme .border-emerald-500\/30,
+.sakura-theme .border-emerald-500\/35 {
+  border-color: rgba(225, 29, 72, 0.35) !important;
+}
+
+.sakura-theme .hover\:bg-cyan-500:hover,
+.sakura-theme .hover\:bg-cyan-600:hover,
+.sakura-theme .hover\:bg-slate-700:hover,
+.sakura-theme .hover\:bg-slate-600:hover,
+.sakura-theme .hover\:bg-emerald-500:hover,
+.sakura-theme .hover\:bg-red-500:hover,
+.sakura-theme .hover\:bg-orange-500:hover {
+  filter: saturate(1.08) brightness(0.98);
+}
+
+.sakura-theme button,
+.sakura-theme select,
+.sakura-theme input,
+.sakura-theme textarea {
+  transition: transform 130ms ease, box-shadow 180ms ease, filter 180ms ease;
+}
+
+.sakura-theme select,
+.sakura-theme input,
+.sakura-theme textarea {
+  background: rgba(10, 1, 2, 0.88);
+  border: 1px solid rgba(76, 5, 25, 0.85);
+  color: #fee2e2;
+}
+
+.sakura-theme select:focus,
+.sakura-theme input:focus,
+.sakura-theme textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 1px rgba(225, 29, 72, 0.45), 0 0 0 4px rgba(225, 29, 72, 0.14);
+  border-color: rgba(225, 29, 72, 0.65);
+}
+
+.sakura-theme button {
+  letter-spacing: 0.02em;
+  font-weight: 600;
+}
+
+.sakura-theme button:hover {
+  box-shadow: 0 8px 16px rgba(136, 19, 55, 0.45);
+}
+
+.sakura-theme button:active {
+  transform: translateY(1px);
+}
+
+.sakura-theme table thead {
+  background: rgba(5, 0, 0, 0.96) !important;
+}
+
+.sakura-theme tr:hover {
+  background: rgba(17, 3, 5, 0.8) !important;
+}
+
+.sakura-theme aside button {
+  border-color: rgba(76, 5, 25, 0.7);
+}
+
+.sakura-theme aside button:hover {
+  background: rgba(37, 6, 11, 0.9);
+}
+
+.sakura-theme .sakura-icon {
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
+}
+
+.sakura-theme .overflow-auto,
+.sakura-theme textarea {
+  overscroll-behavior-y: auto;
+}
+
+@keyframes sakuraFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-14px);
+  }
+}
+
+@media (max-width: 768px) {
+  .sakura-theme {
+    background: linear-gradient(155deg, #030000, #0a0102);
+  }
+
+  .sakura-theme::before,
+  .sakura-theme::after {
+    opacity: 0.6;
+  }
+}

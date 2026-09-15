@@ -1,0 +1,82 @@
+# ==========================================
+# Environments & IDEs
+# ==========================================
+.venv/
+venv/
+env/
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.user
+
+# ==========================================
+# Python Bytecode & Cache
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# ==========================================
+# Node / React UI
+# ==========================================
+node_modules/
+**/node_modules/
+**/dist/
+**/.vite/
+*.log
+
+# ==========================================
+# Local Configuration & Secrets (CRITICAL)
+# ==========================================
+config.json
+**/config.json
+.env
+*.env
+*.pem
+*.key
+
+# ==========================================
+# Local Runtime Databases & Cache
+# ==========================================
+*.sqlite3
+pokeapi_cache.sqlite3
+stats.json
+**/stats.json
+
+# ==========================================
+# Local Runtime Logs & Telemetry
+# ==========================================
+*.log
+*.jsonl
+logs/
+**/logs/
+anti_detect_log*
+autofight*
+worldboss*
+rare_catches*
+retrieved_items*
+
+# ==========================================
+# Captcha Dataset Samples & Images
+# ==========================================
+**/assets/captcha_samples/
+
+# ==========================================
+# Temporary & Scratch Files
+# ==========================================
+*.bak*
+*.tmp
+*.temp
+omething.venvScriptsActivate.ps1
+PokeGrinder/something.txt
+
+# ==========================================
+# OS Specific
+# ==========================================
+.DS_Store
+Thumbs.db

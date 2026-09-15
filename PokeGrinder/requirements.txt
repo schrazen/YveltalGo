@@ -1,0 +1,7 @@
+rich
+ultralytics
+pillow
+flask
+discord.py-self
+aiohttp
+aiosqlite

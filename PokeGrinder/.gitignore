@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# VS Code
+.vscode/*
+!.vscode/extensions.json
+
+# Node / React UI
+ui/react-app/node_modules/
+ui/react-app/dist/
+ui/react-app/.vite/
+
+# Local runtime config & data
+config.json
+stats.json
+anti_detect_log*
+autofight*
+worldboss*
+rare_catches*
+retrieved_items*
+something.txt
+logs/
+*.sqlite3
+pokeapi_cache.sqlite3
+*.log
+
+# Captcha Samples & Dataset
+assets/captcha_samples/
+
+# OS Specific
+.DS_Store
+Thumbs.db
