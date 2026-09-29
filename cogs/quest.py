@@ -40,6 +40,7 @@ class QuestManager(commands.Cog):
         self._last_scroll_buy_at: float = 0.0
         self._syncing_challenges: bool = False
         self._last_challenge_sync_at: float = 0.0
+        self._sync_event = asyncio.Event()
         self._clicked_challenge_messages: dict[int, float] = {}
 
         if not hasattr(self.bot, "quest_data") or not isinstance(self.bot.quest_data, dict):
@@ -66,7 +67,12 @@ class QuestManager(commands.Cog):
     def cog_unload(self) -> None:
         self.quest_supervisor_loop.cancel()
 
-    async def sync_challenges(self, channel: TextChannel | None = None) -> bool:
+    async def sync_challenges(
+        self,
+        channel: TextChannel | None = None,
+        wait_for_sync: bool = False,
+        timeout: float = 6.0,
+    ) -> bool:
         """Dispatches ;challenges to check available challenges and active invitations."""
         now = time.time()
         last_sync = float(getattr(self, "_last_challenge_sync_at", 0.0) or 0.0)
@@ -88,8 +94,16 @@ class QuestManager(commands.Cog):
 
         self._last_challenge_sync_at = now
         self._syncing_challenges = True
+        if hasattr(self, "_sync_event") and self._sync_event is not None:
+            self._sync_event.clear()
         runtime_info_log("[QuestManager] Querying ;challenges to verify battle invitations...")
-        return await self._safe_send_text_or_slash(target_channel, ";challenges")
+        ok = await self._safe_send_text_or_slash(target_channel, ";challenges")
+        if ok and wait_for_sync and hasattr(self, "_sync_event") and self._sync_event is not None:
+            try:
+                await asyncio.wait_for(self._sync_event.wait(), timeout=timeout)
+            except asyncio.TimeoutError:
+                pass
+        return ok
 
     def is_impossible_quest(self, title: str) -> bool:
         """Return True if the quest title matches impossible criteria or is configured for auto_reset."""
@@ -102,29 +116,29 @@ class QuestManager(commands.Cog):
         if decision.get("action") == "auto_reset" or decision.get("is_impossible", False):
             return True
 
-        # 2. Check challenge eligibility (e.g. Master/Boss challengers without active invitation)
+        # 2. Check impossible keywords fallback (e.g. mega chamber / mega chamb)
+        keywords = getattr(self.config, "quest_impossible_keywords", None)
+        if not keywords or not isinstance(keywords, list):
+            keywords = ["mega chamber", "megachamber", "mega chamb"]
+        for kw in keywords:
+            if str(kw).lower().strip() in raw or "mega chamb" in raw:
+                return True
+
+        # 3. Check challenge eligibility (e.g. Master/Boss challengers without active invitation or unlocked NPC)
         ch_data = getattr(self.bot, "challenge_data", None)
-        is_doable, mode, reason = find_eligible_npc_for_quest(raw, ch_data)
+        unbattleable = getattr(self.bot, "unbattleable_npcs", set()) or set()
+        is_doable, mode, reason = find_eligible_npc_for_quest(raw, ch_data, unbattleable_npc_ids=unbattleable)
         if not is_doable and reason in ("no_master_invite", "no_boss_invite"):
             return True
 
         if decision.get("action") in ("auto_complete", "ignore") and not decision.get("is_impossible", False):
             return False
 
-        # 3. Check config keywords fallback
-        keywords = getattr(self.config, "quest_impossible_keywords", None)
-        if not keywords or not isinstance(keywords, list):
-            keywords = ["mega chamber", "megachamber"]
-
-        for kw in keywords:
-            if str(kw).lower().strip() in raw:
-                return True
         return False
 
     def classify_battle_quest(self, title: str) -> tuple[bool, str]:
         """Classify if a quest is a battle quest and return (is_battle, battle_mode).
-        Uses challenge_manager to dynamically choose the correct NPC ID (e.g. Steven 210 for basic/general,
-        or invited Master/Boss NPC ID).
+        Uses challenge_manager to dynamically choose the correct NPC ID (e.g. unlocked basic/boss/master NPC ID).
         """
         raw = str(title or "").lower().strip()
         if not raw or self.is_impossible_quest(raw):
@@ -137,7 +151,8 @@ class QuestManager(commands.Cog):
 
         # Determine via challenge_manager
         ch_data = getattr(self.bot, "challenge_data", None)
-        is_doable, mode, reason = find_eligible_npc_for_quest(raw, ch_data)
+        unbattleable = getattr(self.bot, "unbattleable_npcs", set()) or set()
+        is_doable, mode, reason = find_eligible_npc_for_quest(raw, ch_data, unbattleable_npc_ids=unbattleable)
         if is_doable and mode:
             return True, mode
 
@@ -341,8 +356,8 @@ class QuestManager(commands.Cog):
                 af_channel_id = int(getattr(self.config, "autofight_channel_id", 0) or 0)
                 af_channel = getattr(self.bot, "autofight_channel", None) or (self.bot.get_channel(af_channel_id) if af_channel_id else None)
                 if af_channel and not is_captcha_active(self.bot) and not is_in_battle(self.bot):
-                    await self.sync_challenges(af_channel)
-                    await asyncio.sleep(2.0)
+                    await self.sync_challenges(af_channel, wait_for_sync=True, timeout=6.0)
+                    await asyncio.sleep(1.0)
 
             # 1. Check for IMPOSSIBLE / AUTO-RESET quests first (Priority 1)
             if auto_reset_enabled:
@@ -600,9 +615,12 @@ class QuestManager(commands.Cog):
             has_no_inv = parsed.get("has_no_invites", False)
             runtime_info_log(
                 f"[QuestManager] Synced challenge data: {inv_count} active invitation(s), "
-                f"{len(parsed.get('basic', []))} basic, {len(parsed.get('master', []))} master (no_invites={has_no_inv})."
+                f"{len(parsed.get('basic', []))} basic, {len(parsed.get('boss', []))} boss, "
+                f"{len(parsed.get('master', []))} master (no_invites={has_no_inv})."
             )
             self._syncing_challenges = False
+            if hasattr(self, "_sync_event") and self._sync_event is not None:
+                self._sync_event.set()
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: Message, after: Message) -> None:

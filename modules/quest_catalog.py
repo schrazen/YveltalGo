@@ -25,7 +25,7 @@ DEFAULT_QUEST_CATALOG: list[dict[str, Any]] = [
     {
         "id": "mega_chamber_defeat",
         "title": "Defeat Mega Chambers",
-        "pattern": r"\b(defeat|complete|win)\b.*\bmega\s*chambers?\b|\bmega\s*chamber\b",
+        "pattern": r"\b(defeat|complete|win)\b.*\bmega\s*chamb|\bmega\s*chamb",
         "category": "mega_chamber",
         "description": "Challenging Mega Chamber dungeon. Requires dedicated Mega team and tickets; impossible for standard grinding.",
         "doable_auto": False,
@@ -724,7 +724,7 @@ class QuestCatalog:
                 return matched_item
 
             # If not matched, auto-discover and create a new catalog entry!
-            is_mega = "mega chamber" in title.lower() or "megachamber" in title.lower()
+            is_mega = bool(re.search(r"mega\s*chamb", title, re.IGNORECASE))
             is_challenger = "challenger" in title.lower()
             is_battle = is_challenger or bool(re.search(r"\b(battle|npc|trainer)\b", title, re.IGNORECASE))
             is_fish = bool(re.search(r"\b(fish|rod)\b", title, re.IGNORECASE))

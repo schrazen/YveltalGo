@@ -2,7 +2,7 @@
   {
     "id": "mega_chamber_defeat",
     "title": "Defeat Mega Chambers",
-    "pattern": "\\b(defeat|complete|win)\\b.*\\bmega\\s*chambers?\\b|\\bmega\\s*chamber\\b",
+    "pattern": "\\b(defeat|complete|win)\\b.*\\bmega\\s*chamb|\\bmega\\s*chamb",
     "category": "mega_chamber",
     "description": "Challenging Mega Chamber dungeon. Requires dedicated Mega team and tickets; impossible for standard grinding.",
     "doable_auto": false,
@@ -10,11 +10,13 @@
     "action": "auto_reset",
     "default_action": "auto_reset",
     "battle_mode": null,
-    "times_seen": 43,
-    "last_seen_utc": "2026-09-29T18:50:45.234708+00:00",
+    "times_seen": 71,
+    "last_seen_utc": "2026-09-29T19:06:27.705714+00:00",
     "sample_titles": [
       "Complete the Mega Chamber",
-      "Defeat 5 Mega Chambers"
+      "Defeat 5 Mega Chambers",
+      "Defeat a Mega Chamber!",
+      "Defeat a Mega Chambe"
     ],
     "is_custom": false
   },
@@ -29,8 +31,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "npc 210",
-    "times_seen": 25,
-    "last_seen_utc": "2026-09-29T18:50:45.241326+00:00",
+    "times_seen": 33,
+    "last_seen_utc": "2026-09-29T19:06:27.712785+00:00",
     "sample_titles": [
       "Defeat a Basic Challenger",
       "⚔️ **Defeat a Basic Challenger**",
@@ -49,8 +51,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "master_challenger",
-    "times_seen": 36,
-    "last_seen_utc": "2026-09-29T18:50:45.237267+00:00",
+    "times_seen": 44,
+    "last_seen_utc": "2026-09-29T19:06:27.704712+00:00",
     "sample_titles": [
       "Defeat a Master Challenger!",
       "Defeat a Master Challenger"
@@ -100,11 +102,12 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "npc 210",
-    "times_seen": 35,
-    "last_seen_utc": "2026-09-29T18:50:45.233709+00:00",
+    "times_seen": 61,
+    "last_seen_utc": "2026-09-29T19:06:27.699705+00:00",
     "sample_titles": [
       "Defeat 2 Challengers in battle",
-      "Defeat 3 Boss Challengers!"
+      "Defeat 3 Boss Challengers!",
+      "Defeat 3 Boss Challengers"
     ],
     "is_custom": false
   },
@@ -199,12 +202,13 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 36,
-    "last_seen_utc": "2026-09-29T18:50:45.238266+00:00",
+    "times_seen": 44,
+    "last_seen_utc": "2026-09-29T19:06:27.706711+00:00",
     "sample_titles": [
       "Encounter 500 Pokemon in the wild",
       "Encounter 500 Pokemon in wild",
-      "<:dexcaught:667082939632189451> **Encounter 5 Pokemon in the wild**"
+      "<:dexcaught:667082939632189451> **Encounter 5 Pokemon in the wild**",
+      "<:dexcaught:667082939632189451> **Encounter 500 Pokemon in the wild**"
     ],
     "is_custom": false
   },
@@ -219,11 +223,12 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 18,
-    "last_seen_utc": "2026-09-29T18:50:45.240266+00:00",
+    "times_seen": 38,
+    "last_seen_utc": "2026-09-29T19:06:27.711786+00:00",
     "sample_titles": [
       "Fish & Catch 25 Pokemon with a Pokelure active!",
-      "Fish & Catch 25 Pokemon with a Pokelure active > 💰 R"
+      "Fish & Catch 25 Pokemon with a Pokelure active > 💰 R",
+      "Fish & Catch 25 Pokemon with a Pokelure active"
     ],
     "is_custom": false
   },
@@ -338,8 +343,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 55,
-    "last_seen_utc": "2026-09-29T18:50:45.229098+00:00",
+    "times_seen": 86,
+    "last_seen_utc": "2026-09-29T19:06:27.692223+00:00",
     "sample_titles": [
       "Catch 20 Water-type Pokemon",
       "Catch 20 Grass Type Pokemo",
@@ -553,8 +558,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 9,
-    "last_seen_utc": "2026-09-29T18:50:45.232703+00:00",
+    "times_seen": 18,
+    "last_seen_utc": "2026-09-29T19:06:27.697191+00:00",
     "sample_titles": [
       "Defeat 3 Boss Ch"
     ],
@@ -579,7 +584,43 @@
     "is_custom": false
   },
   {
-    "id": "auto_battle_invitations_1790707845",
+    "id": "auto_defeat_a_mega_chambe_1790708361",
+    "title": "Defeat a Mega Chambe",
+    "pattern": "Defeat\\ a\\ Mega\\ Chambe",
+    "category": "wild_catch",
+    "description": "Auto-discovered PokéMeow quest: 'Defeat a Mega Chambe'",
+    "doable_auto": true,
+    "is_impossible": false,
+    "action": "auto_complete",
+    "default_action": "auto_complete",
+    "battle_mode": null,
+    "times_seen": 7,
+    "last_seen_utc": "2026-09-29T19:05:21.734423+00:00",
+    "sample_titles": [
+      "Defeat a Mega Chambe"
+    ],
+    "is_custom": false
+  },
+  {
+    "id": "auto_receive_1_chocolate_bar_from_a_1790708457",
+    "title": "**Receive 1 🍫 chocolate bar from another player**",
+    "pattern": "\\*\\*Receive\\ 1\\ 🍫\\ chocolate\\ bar\\ from\\ another\\ player\\*\\*",
+    "category": "wild_catch",
+    "description": "Auto-discovered PokéMeow quest: '**Receive 1 🍫 chocolate bar from another player**'",
+    "doable_auto": true,
+    "is_impossible": false,
+    "action": "auto_complete",
+    "default_action": "auto_complete",
+    "battle_mode": null,
+    "times_seen": 2,
+    "last_seen_utc": "2026-09-29T19:00:58.453557+00:00",
+    "sample_titles": [
+      "**Receive 1 🍫 chocolate bar from another player**"
+    ],
+    "is_custom": false
+  },
+  {
+    "id": "auto_battle_invitations_1790708722",
     "title": "Battle invitations",
     "pattern": "Battle\\ invitations",
     "category": "battle",
@@ -589,8 +630,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "npc 1",
-    "times_seen": 2,
-    "last_seen_utc": "2026-09-29T18:50:45.224607+00:00",
+    "times_seen": 6,
+    "last_seen_utc": "2026-09-29T19:06:27.688075+00:00",
     "sample_titles": [
       "Battle invitations"
     ],

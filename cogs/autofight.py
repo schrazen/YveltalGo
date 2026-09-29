@@ -4043,6 +4043,14 @@ class AutoFight(commands.Cog):
                 break
 
         if rejection_match:
+            m_id = re.search(r"\bnpc\s*(\d+)", str(self._battle_mode_args or "").lower())
+            if m_id:
+                bad_npc_id = int(m_id.group(1))
+                if not hasattr(self.bot, "unbattleable_npcs") or not isinstance(self.bot.unbattleable_npcs, set):
+                    self.bot.unbattleable_npcs = set()
+                self.bot.unbattleable_npcs.add(bad_npc_id)
+                runtime_info_log(f"[AutoFight] Marked NPC {bad_npc_id} as unbattleable (dispatch rejected: {rejection_match}).")
+
             self._log_event(
                 "battle_dispatch_rejected",
                 {

@@ -48,7 +48,7 @@ def test_parse_challenges_invitations():
 
 
 def test_find_eligible_npc():
-    # Case 1: Master challenger quest with no invites held
+    # Case 1: Master challenger quest with no invites held and empty master list
     doable, mode, reason = find_eligible_npc_for_quest("Defeat a Master Challenger", {"invitations": [], "master": []})
     assert doable is False
     assert reason == "no_master_invite"
@@ -57,26 +57,39 @@ def test_find_eligible_npc():
     challenge_data = {
         "invitations": [{"name": "trainer_cynthia", "id": 215, "tier": "master"}],
         "master": [],
-        "basic": [{"name": "trainer_steven", "id": 210, "tier": "basic"}],
+        "boss": [{"name": "plasma_boss_ghetsis", "id": 204, "tier": "boss"}, {"name": "rocket_boss_giovanni", "id": 200, "tier": "boss"}],
+        "basic": [{"name": "trainer_red", "id": 209, "tier": "basic"}],
     }
     doable, mode, reason = find_eligible_npc_for_quest("Defeat a Master Challenger!", challenge_data)
     assert doable is True
     assert mode == "npc 215"
     assert "master_invite" in reason
 
-    # Case 3: Basic challenger quest
+    # Case 3: Boss challenger quest with unlocked boss list (Ghetsis 204)
+    doable, mode, reason = find_eligible_npc_for_quest("Defeat 3 Boss Challengers", challenge_data)
+    assert doable is True
+    assert mode == "npc 204"
+    assert "boss_unlocked:plasma_boss_ghetsis" == reason
+
+    # Case 4: Boss challenger quest with 204 unbattleable (fallback to Giovanni 200)
+    doable, mode, reason = find_eligible_npc_for_quest("Defeat 3 Boss Challengers", challenge_data, unbattleable_npc_ids={204})
+    assert doable is True
+    assert mode == "npc 200"
+    assert "boss_unlocked:rocket_boss_giovanni" == reason
+
+    # Case 5: Basic challenger quest
     doable, mode, reason = find_eligible_npc_for_quest("Defeat a Basic Challenger", challenge_data)
     assert doable is True
-    assert mode == "npc 210"
-    assert reason == "basic_challenger"
+    assert mode == "npc 209"
+    assert "basic_challenger" in reason
 
-    # Case 4: General challenger quest
+    # Case 6: General challenger quest
     doable, mode, reason = find_eligible_npc_for_quest("Defeat 2 Challengers in battle", challenge_data)
     assert doable is True
-    assert mode == "npc 210"
-    assert reason == "general_challenger"
+    assert mode == "npc 209"
+    assert "general_challenger" in reason
 
-    # Case 5: Standard NPC / trainer battle
+    # Case 7: Standard NPC / trainer battle
     doable, mode, reason = find_eligible_npc_for_quest("Defeat 5 Pokemon in battle", challenge_data)
     assert doable is True
     assert mode == "npc 1"
@@ -88,7 +101,7 @@ def test_quest_manager_integration():
     class DummyConfig:
         quest_auto_reset_enabled = True
         quest_auto_battle_enabled = True
-        quest_impossible_keywords = ["mega chamber"]
+        quest_impossible_keywords = ["mega chamber", "mega chamb"]
         autofight_channel_id = 1488006398255300658
 
     class DummyBot:
@@ -96,11 +109,13 @@ def test_quest_manager_integration():
             self.config = DummyConfig()
             self.quest_data = {"active_quests": []}
             self.challenge_data = {
-                "basic": [{"name": "trainer_steven", "id": 210, "tier": "basic"}],
+                "basic": [{"name": "trainer_red", "id": 209, "tier": "basic"}],
+                "boss": [{"name": "rocket_boss_giovanni", "id": 200, "tier": "boss"}],
                 "invitations": [],
                 "master": [],
                 "has_no_invites": True,
             }
+            self.unbattleable_npcs = set()
 
     bot = DummyBot()
     # Mocking QuestManager without discord task loop
@@ -109,21 +124,28 @@ def test_quest_manager_integration():
     qm.config = bot.config
     qm._last_challenge_sync_at = 0.0
 
-    # 1. Master challenger with no invites is detected as impossible (auto-reset)
+    # 1. Master challenger with no invites and no master list is detected as impossible (auto-reset)
     assert qm.is_impossible_quest("Defeat a Master Challenger") is True
     is_battle, mode = qm.classify_battle_quest("Defeat a Master Challenger")
     assert is_battle is False
 
-    # 2. Mega Chamber is always impossible
+    # 2. Mega Chamber (full and truncated) is always impossible
     assert qm.is_impossible_quest("Complete the Mega Chamber") is True
+    assert qm.is_impossible_quest("Defeat a Mega Chambe") is True
 
-    # 3. Basic Challenger is always doable
+    # 3. Basic Challenger is doable (uses Red 209)
     assert qm.is_impossible_quest("Defeat a Basic Challenger") is False
     is_battle, mode = qm.classify_battle_quest("Defeat a Basic Challenger")
     assert is_battle is True
-    assert mode == "npc 210"
+    assert mode == "npc 209"
 
-    # 4. Now grant a Master invitation
+    # 4. Boss Challenger is doable because Giovanni 200 is unlocked
+    assert qm.is_impossible_quest("Defeat 3 Boss Challengers") is False
+    is_battle, mode = qm.classify_battle_quest("Defeat 3 Boss Challengers")
+    assert is_battle is True
+    assert mode == "npc 200"
+
+    # 5. Now grant a Master invitation
     bot.challenge_data["invitations"] = [{"name": "trainer_cynthia", "id": 215, "tier": "master"}]
     assert qm.is_impossible_quest("Defeat a Master Challenger") is False
     is_battle, mode = qm.classify_battle_quest("Defeat a Master Challenger")
@@ -207,6 +229,7 @@ def test_challenge_menu_recognition_and_button_click():
     qm._last_reset_per_slot = {}
     qm._clicked_challenge_messages = {}
     qm._pending_scroll_buy_for_slot = None
+    qm._sync_event = asyncio.Event()
 
     # Run on_message
     asyncio.run(qm.on_message(msg))
@@ -219,7 +242,7 @@ def test_challenge_menu_recognition_and_button_click():
     # Debounce test: running on_message again on the same message should NOT re-click
     btn_invites.clicked = False
     asyncio.run(qm.on_message(msg))
-    assert btn_invites.clicked is False, "Debounce failed: button re-clicked within 8s"
+    assert btn_invites.clicked is False, "Debounce failed: button re-clicked on same message id"
 
     print("test_challenge_menu_recognition_and_button_click: PASSED")
 
