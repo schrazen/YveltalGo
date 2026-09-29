@@ -1233,6 +1233,37 @@ def get_captcha_telemetry():
     )
 
 
+@app.get("/api/session/analysis")
+def get_session_analysis():
+    minutes_raw = request.args.get("minutes")
+    hours_raw = request.args.get("hours")
+    account_raw = str(request.args.get("account", "") or "").strip()
+    account_filter = account_raw if account_raw and account_raw.lower() != "all" else None
+
+    window_start: datetime | None = None
+    now = datetime.now(timezone.utc)
+
+    if minutes_raw:
+        try:
+            window_start = now - timedelta(minutes=float(minutes_raw))
+        except ValueError:
+            window_start = now - timedelta(minutes=60)
+    elif hours_raw:
+        try:
+            window_start = now - timedelta(hours=float(hours_raw))
+        except ValueError:
+            window_start = now - timedelta(hours=1)
+    else:
+        window_start = now - timedelta(minutes=60)
+
+    try:
+        from tools.analyze_session import collect_session_metrics
+        metrics = collect_session_metrics(window_start=window_start, account_filter=account_filter)
+        return jsonify({"ok": True, **metrics})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
 @app.post("/api/runtime/action")
 def runtime_action():
     if _runtime_action_handler is None:
