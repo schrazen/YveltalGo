@@ -50,42 +50,45 @@ class Fishing(commands.Cog):
             return
         if not self.config.human_breaks_enabled:
             return
-        if not self.break_coordinator:
-            return
 
-        # Use shared coordinator so hunting and fishing break together
-        break_seconds = self.break_coordinator.get_break_duration()
-        if break_seconds > 0:
-            print(f"[Fishing] Human break for {break_seconds}s")
-            channel = self.bot.get_channel(self.config.fishing_channel_id)
-            if channel is not None:
+        if self.break_coordinator:
+            # If another cog is already taking a break, wait for it
+            while self.break_coordinator.is_break_in_progress():
+                await asyncio.sleep(1.0)
+
+            break_seconds = self.break_coordinator.get_break_duration()
+            if break_seconds > 0:
+                print(f"[Fishing] Silent human break for {break_seconds}s")
+                if hasattr(self.bot, "humanizer") and self.bot.humanizer:
+                    self.bot.humanizer.last_break_time = time() + break_seconds
+
+                record_anti_detect_event(
+                    str(self.bot.user) if self.bot.user else "unknown",
+                    "human_break",
+                    module="fishing",
+                    channel_id=self.config.fishing_channel_id,
+                    details={"seconds": break_seconds, "stealth": True},
+                )
+                self.break_coordinator.start_break()
                 try:
-                    await channel.send(choice(["brb", "brb getting water", "afk a bit", "brb phone call"]))
-                except Exception:
-                    pass
-            record_anti_detect_event(
-                str(self.bot.user) if self.bot.user else "unknown",
-                "human_break",
-                module="fishing",
-                channel_id=self.config.fishing_channel_id,
-                details={"seconds": break_seconds},
-            )
-            self.break_coordinator.start_break()
-            await asyncio.sleep(break_seconds)
-            self.break_coordinator.end_break()
+                    await asyncio.sleep(break_seconds)
+                finally:
+                    self.break_coordinator.end_break()
+        elif hasattr(self.bot, "humanizer") and self.bot.humanizer:
+            await self.bot.humanizer.maybe_take_human_break("fishing", self.config.fishing_channel_id)
 
     async def _maybe_add_idle_randomness(self) -> None:
         """
-        Occasionally add unscheduled idle time (5-20s) to break the perfect rhythm.
-        This makes behavior look less bot-like by introducing random "doing nothing" pauses.
+        Occasionally add unscheduled idle time to break the rhythm naturally.
         """
         if self._max_speed():
             return
         if not self.config.human_breaks_enabled:
             return
 
-        # ~8% chance of random idle (roughly once per 12-15 actions)
-        if randint(0, 100) > 92:
+        if hasattr(self.bot, "humanizer") and self.bot.humanizer:
+            await self.bot.humanizer.maybe_add_idle_randomness("fishing", self.config.fishing_channel_id)
+        elif randint(0, 100) > 92:
             idle_seconds = randint(5, 20)
             print(f"[Fishing] Idle randomness: {idle_seconds}s")
             record_anti_detect_event(
@@ -99,33 +102,34 @@ class Fishing(commands.Cog):
 
     def _get_behavioral_delay(self, min_sec: float, max_sec: float) -> float:
         """
-        Return a delay that's more human-like: sometimes upper range, sometimes lower,
-        but NOT consistently in the middle. Occasionally biased to look like hesitation.
+        Return a natural log-normal delay clustering around human cognitive reaction times.
         """
-        # 70% natural random, 20% weighted to upper (hesitation), 10% weighted to lower (rushing)
+        if hasattr(self.bot, "humanizer") and self.bot.humanizer:
+            mid = (float(min_sec) + float(max_sec)) / 2.0
+            return self.bot.humanizer.get_natural_jitter(mid, variance=0.25, min_floor=min_sec)
+
         roll = randint(0, 100)
-        
         if roll < 70:
-            # Natural uniform random
             return randint(int(min_sec * 1000), int(max_sec * 1000)) / 1000
         elif roll < 90:
-            # Bias to upper (humans hesitate/think)
             mid = (min_sec + max_sec) / 2
             return randint(int(mid * 1000), int(max_sec * 1000)) / 1000
         else:
-            # Bias to lower (humans sometimes rush)
             mid = (min_sec + max_sec) / 2
             return randint(int(min_sec * 1000), int(mid * 1000)) / 1000
 
-    async def _get_pre_action_hesitation(self) -> float:
+    async def _get_pre_action_hesitation(self, rarity: str = "Common") -> float:
         """
-        Random hesitation BEFORE a critical action (cast, catch).
-        Humans pause to think before acting; makes it look less instant.
-        ~30% chance of 0.5-3s delay.
+        Cognitive hesitation before action, weighted by rarity and fatigue.
         """
         if self._max_speed():
-            return 0
-        if randint(0, 100) > 70:  # 30% chance
+            return 0.0
+        if hasattr(self.bot, "humanizer") and self.bot.humanizer:
+            return await self.bot.humanizer.get_cognitive_hesitation(
+                "fishing", rarity=rarity, channel_id=self.config.fishing_channel_id
+            )
+
+        if randint(0, 100) > 70:
             hesitation = randint(500, 3000) / 1000
             record_anti_detect_event(
                 str(self.bot.user) if self.bot.user else "unknown",
@@ -135,15 +139,16 @@ class Fishing(commands.Cog):
                 details={"seconds": hesitation},
             )
             return hesitation
-        return 0
+        return 0.0
 
     def _should_skip_cycle(self) -> bool:
         """
-        ~5% chance to skip a cycle (late reaction, distraction).
-        Makes it look like human didn't react instantly to fish encounter.
+        Simulate human distraction / delayed reaction skipping an action cycle.
         """
         if self._max_speed():
             return False
+        if hasattr(self.bot, "humanizer") and self.bot.humanizer:
+            return self.bot.humanizer.should_skip_cycle("fishing", self.config.fishing_channel_id)
         return randint(0, 100) > 95
 
     @staticmethod
@@ -239,6 +244,9 @@ class Fishing(commands.Cog):
             return
 
         try:
+            channel = self.bot.get_channel(self.config.fishing_channel_id)
+            if channel is not None and hasattr(self.bot, "humanizer") and self.bot.humanizer:
+                await self.bot.humanizer.simulate_human_typing(channel, chars_count=2)
             await fish_spawn()
         except InvalidData:
             # Discord timed out; startup loop will retry.
@@ -299,12 +307,16 @@ class Fishing(commands.Cog):
         # Respect fishing cooldown returned by PokéMeow to avoid spam loops.
         wait_seconds = self._parse_wait_seconds(message.content)
         self.bot.last_fish = time()
-        await asyncio.sleep(wait_seconds)
-        await asyncio.sleep(randint(0, self.config.suspicion_avoidance) / 1000)
-        if self.config.enable_anti_detection:
-            await asyncio.sleep(self.config.min_action_delay_seconds)
+        base_wait = max(wait_seconds, 1.0)
+        if hasattr(self.bot, "humanizer") and self.bot.humanizer:
+            await asyncio.sleep(self.bot.humanizer.get_natural_jitter(base_wait, variance=0.15, min_floor=base_wait))
         else:
-            await asyncio.sleep(self._get_behavioral_delay(self.config.fishing_delay_min, self.config.fishing_delay_max))
+            await asyncio.sleep(base_wait)
+            await asyncio.sleep(randint(0, self.config.suspicion_avoidance) / 1000)
+            if self.config.enable_anti_detection:
+                await asyncio.sleep(self.config.min_action_delay_seconds)
+            else:
+                await asyncio.sleep(self._get_behavioral_delay(self.config.fishing_delay_min, self.config.fishing_delay_max))
         await self._maybe_take_human_break()
         # Pre-action hesitation before dispatch
         hesitation = await self._get_pre_action_hesitation()
@@ -381,14 +393,42 @@ class Fishing(commands.Cog):
             await self.bot.log()
 
             self.bot.last_fish = time()
-            await asyncio.sleep(self.config.fishing_cooldown)
-            await asyncio.sleep(randint(0, self.config.suspicion_avoidance) / 1000)
-            await asyncio.sleep(randint(int(self.config.post_catch_delay_min * 1000), int(self.config.post_catch_delay_max * 1000)) / 1000)
+            fishing_cooldown = float(self.config.fishing_cooldown)
+            if hasattr(self.bot, "humanizer") and self.bot.humanizer:
+                cooldown_sleep = self.bot.humanizer.get_natural_jitter(
+                    fishing_cooldown, variance=0.15, min_floor=fishing_cooldown * 0.95
+                )
+                await asyncio.sleep(cooldown_sleep)
+
+                post_catch_mid = (
+                    float(self.config.post_catch_delay_min)
+                    + float(self.config.post_catch_delay_max)
+                ) / 2.0
+                post_catch_sleep = self.bot.humanizer.get_natural_jitter(
+                    post_catch_mid, variance=0.25, min_floor=float(self.config.post_catch_delay_min)
+                )
+                await asyncio.sleep(post_catch_sleep)
+            else:
+                await asyncio.sleep(fishing_cooldown)
+                await asyncio.sleep(randint(0, self.config.suspicion_avoidance) / 1000)
+                await asyncio.sleep(
+                    randint(
+                        int(self.config.post_catch_delay_min * 1000),
+                        int(self.config.post_catch_delay_max * 1000),
+                    )
+                    / 1000
+                )
             # Occasional idle before retrying
             await self._maybe_add_idle_randomness()
-            
+
             if self.config.enable_anti_detection:
-                await asyncio.sleep(self.config.min_action_delay_seconds)
+                if hasattr(self.bot, "humanizer") and self.bot.humanizer:
+                    action_delay = self.bot.humanizer.get_natural_jitter(
+                        self.config.min_action_delay_seconds, variance=0.2
+                    )
+                else:
+                    action_delay = self.config.min_action_delay_seconds
+                await asyncio.sleep(action_delay)
             else:
                 await asyncio.sleep(self._get_behavioral_delay(self.config.fishing_delay_min, self.config.fishing_delay_max))
             await self._maybe_take_human_break()
@@ -422,6 +462,13 @@ class Fishing(commands.Cog):
             await self.bot.log()
 
             try:
+                if not self._max_speed():
+                    cast_reaction = (
+                        self.bot.humanizer.get_natural_jitter(0.35, variance=0.25, min_floor=0.15)
+                        if hasattr(self.bot, "humanizer") and self.bot.humanizer
+                        else 0.3
+                    )
+                    await asyncio.sleep(cast_reaction)
                 await after.components[0].children[0].click()
 
             except InvalidData:
@@ -482,18 +529,21 @@ class Fishing(commands.Cog):
                     channel_id=self.config.fishing_channel_id,
                     details={"rarity": rarity, "ball": ball},
                 )
-                if not self._max_speed():
-                    await asyncio.sleep(randint(120, 450) / 1000)
-            elif self.config.enable_anti_detection:
-                await asyncio.sleep(self.config.min_action_delay_seconds)
-            else:
-                await asyncio.sleep(self._get_behavioral_delay(self.config.fishing_delay_min, self.config.fishing_delay_max))
 
-            # Pre-action hesitation before selecting ball
+            # Cognitive hesitation based on rarity
+            hesitation = await self._get_pre_action_hesitation(rarity=rarity)
+            if hesitation > 0:
+                await asyncio.sleep(hesitation)
+
             if not high_rarity:
-                hesitation = await self._get_pre_action_hesitation()
-                if hesitation > 0:
-                    await asyncio.sleep(hesitation)
+                if self.config.enable_anti_detection:
+                    if hasattr(self.bot, "humanizer") and self.bot.humanizer:
+                        action_delay = self.bot.humanizer.get_natural_jitter(self.config.min_action_delay_seconds, variance=0.2)
+                    else:
+                        action_delay = self.config.min_action_delay_seconds
+                    await asyncio.sleep(action_delay)
+                else:
+                    await asyncio.sleep(self._get_behavioral_delay(self.config.fishing_delay_min, self.config.fishing_delay_max))
 
             children = [
                 child for component in after.components for child in component.children
@@ -503,12 +553,26 @@ class Fishing(commands.Cog):
             if not chosen_button:
                 return
 
-            if high_rarity:
-                if not self._max_speed():
-                    await asyncio.sleep(randint(80, 300) / 1000)
-            else:
-                await asyncio.sleep(randint(0, self.config.suspicion_avoidance) / 1000)
             try:
+                channel = after.channel
+                if channel is not None and hasattr(self.bot, "humanizer") and self.bot.humanizer:
+                    await self.bot.humanizer.simulate_human_typing(channel, chars_count=len(ball))
+
+                if high_rarity:
+                    if not self._max_speed():
+                        jitter = (
+                            self.bot.humanizer.get_natural_jitter(0.2, variance=0.2, min_floor=0.08)
+                            if hasattr(self.bot, "humanizer") and self.bot.humanizer
+                            else (randint(80, 300) / 1000)
+                        )
+                        await asyncio.sleep(jitter)
+                else:
+                    jitter = (
+                        self.bot.humanizer.get_natural_jitter(0.35, variance=0.25, min_floor=0.1)
+                        if hasattr(self.bot, "humanizer") and self.bot.humanizer
+                        else (randint(0, self.config.suspicion_avoidance) / 1000)
+                    )
+                    await asyncio.sleep(jitter)
                 await chosen_button.click()
             except InvalidData:
                 pass
@@ -597,14 +661,42 @@ class Fishing(commands.Cog):
                 )
             )
 
-            await asyncio.sleep(self.config.fishing_cooldown)
-            await asyncio.sleep(randint(0, self.config.suspicion_avoidance) / 1000)
-            await asyncio.sleep(randint(int(self.config.post_catch_delay_min * 1000), int(self.config.post_catch_delay_max * 1000)) / 1000)
+            fishing_cooldown = float(self.config.fishing_cooldown)
+            if hasattr(self.bot, "humanizer") and self.bot.humanizer:
+                cooldown_sleep = self.bot.humanizer.get_natural_jitter(
+                    fishing_cooldown, variance=0.15, min_floor=fishing_cooldown * 0.95
+                )
+                await asyncio.sleep(cooldown_sleep)
+
+                post_catch_mid = (
+                    float(self.config.post_catch_delay_min)
+                    + float(self.config.post_catch_delay_max)
+                ) / 2.0
+                post_catch_sleep = self.bot.humanizer.get_natural_jitter(
+                    post_catch_mid, variance=0.25, min_floor=float(self.config.post_catch_delay_min)
+                )
+                await asyncio.sleep(post_catch_sleep)
+            else:
+                await asyncio.sleep(fishing_cooldown)
+                await asyncio.sleep(randint(0, self.config.suspicion_avoidance) / 1000)
+                await asyncio.sleep(
+                    randint(
+                        int(self.config.post_catch_delay_min * 1000),
+                        int(self.config.post_catch_delay_max * 1000),
+                    )
+                    / 1000
+                )
             # Occasional idle before retrying (looks like human distraction)
             await self._maybe_add_idle_randomness()
-            
+
             if self.config.enable_anti_detection:
-                await asyncio.sleep(self.config.min_action_delay_seconds)
+                if hasattr(self.bot, "humanizer") and self.bot.humanizer:
+                    action_delay = self.bot.humanizer.get_natural_jitter(
+                        self.config.min_action_delay_seconds, variance=0.2
+                    )
+                else:
+                    action_delay = self.config.min_action_delay_seconds
+                await asyncio.sleep(action_delay)
             else:
                 await asyncio.sleep(self._get_behavioral_delay(self.config.fishing_delay_min, self.config.fishing_delay_max))
             await self._maybe_take_human_break()
