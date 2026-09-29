@@ -9,7 +9,9 @@ import aiohttp
 import aiosqlite
 
 BASE_DIR = Path(__file__).resolve().parents[1]
-DB_PATH = BASE_DIR / "pokeapi_cache.sqlite3"
+DATA_DIR = BASE_DIR / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+DB_PATH = DATA_DIR / "pokeapi_cache.sqlite3"
 _POKEMON_ENDPOINT = "https://pokeapi.co/api/v2/pokemon/"
 _MOVE_ENDPOINT = "https://pokeapi.co/api/v2/move/"
 _session: aiohttp.ClientSession | None = None

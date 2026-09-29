@@ -23,7 +23,8 @@ from modules.autofight_log import (
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 CONFIG_PATH = BASE_DIR / "config.json"
-STATS_PATH = BASE_DIR / "stats.json"
+DATA_DIR = BASE_DIR / "data"
+STATS_PATH = DATA_DIR / "stats.json" if (DATA_DIR / "stats.json").exists() else BASE_DIR / "stats.json"
 UI_DIST_PATH = Path(__file__).resolve().parent / "react-app" / "dist"
 CAPTCHA_SAMPLES_DIR = BASE_DIR / "assets" / "captcha_samples"
 AUTO_SOLVER_ATTEMPTS_PATH = CAPTCHA_SAMPLES_DIR / "auto_solver_attempts.jsonl"

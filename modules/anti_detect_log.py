@@ -8,7 +8,9 @@ from pathlib import Path
 from typing import Any
 
 BASE_DIR = Path(__file__).resolve().parents[1]
-LOG_PATH = BASE_DIR / "anti_detect_log.jsonl"
+LOG_DIR = BASE_DIR / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+LOG_PATH = LOG_DIR / "anti_detect_log.jsonl"
 _MAX_EVENTS = 1500
 _events: deque[dict[str, Any]] = deque(maxlen=_MAX_EVENTS)
 _lock = threading.Lock()

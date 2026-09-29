@@ -176,6 +176,8 @@ npm run dev
 │   ├── berry.py                      # Berry garden watering automation
 │   ├── egg.py                        # Egg incubation
 │   └── catchbot.py                   # CatchBot loot claiming
+├── data/                             # Static databases & local caches (fishes.json, cache)
+├── logs/                             # Runtime telemetry & session logs (gitignored)
 ├── modules/                          # Utilities, parsers & anti-detection
 │   ├── captcha_solver.py             # YOLO inference & image preprocessing
 │   ├── humanizer.py                  # Behavioral jitter & break timers

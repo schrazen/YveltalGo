@@ -6,7 +6,9 @@ from pathlib import Path
 from typing import Any, Dict
 
 BASE_DIR = Path(__file__).resolve().parents[1]
-STATS_PATH = BASE_DIR / "stats.json"
+DATA_DIR = BASE_DIR / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+STATS_PATH = DATA_DIR / "stats.json"
 DAY_MODE_RESET_HOUR = 12
 
 

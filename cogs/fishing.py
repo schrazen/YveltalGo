@@ -15,7 +15,10 @@ from modules.anti_detect_log import record_anti_detect_event
 from modules.cloudflare_indicator import is_cloudflare_1015_error, notify_cloudflare_in_channel
 
 BASE_DIR = Path(__file__).resolve().parents[1]
-fishes = json.loads((BASE_DIR / "fishes.json").read_text(encoding="utf-8"))
+_fishes_file = BASE_DIR / "data" / "fishes.json"
+if not _fishes_file.exists():
+    _fishes_file = BASE_DIR / "fishes.json"
+fishes = json.loads(_fishes_file.read_text(encoding="utf-8"))
 
 
 def resolve_fishing_rarity(embed_description: str) -> str:
