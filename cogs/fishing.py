@@ -160,11 +160,24 @@ class Fishing(commands.Cog):
         priority = ["mb", "db", "prb", "ub", "gb", "pb"]
         safe_preferred = preferred_ball if preferred_ball in priority else "pb"
         allowed = priority[priority.index(safe_preferred) :]
-        buttons_by_id = {getattr(button, "custom_id", ""): button for button in children}
+        
+        buttons_by_ball: dict[str, object] = {}
+        for button in children:
+            cid = str(getattr(button, "custom_id", "") or "").strip()
+            if not cid:
+                continue
+            buttons_by_ball[cid] = button
+            suffix = cid.split(":")[-1]
+            buttons_by_ball[suffix] = button
+            if suffix.endswith("_fish"):
+                buttons_by_ball[suffix[:-5]] = button
+
         for ball_id in allowed:
             custom_id = f"{ball_id}_fish"
-            if custom_id in buttons_by_id:
-                return buttons_by_id[custom_id]
+            if custom_id in buttons_by_ball:
+                return buttons_by_ball[custom_id]
+            if ball_id in buttons_by_ball:
+                return buttons_by_ball[ball_id]
         return None
 
     @staticmethod

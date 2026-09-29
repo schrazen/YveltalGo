@@ -394,10 +394,20 @@ class Hunting(commands.Cog):
         priority = ["mb", "db", "prb", "ub", "gb", "pb"]
         safe_preferred = preferred_ball if preferred_ball in priority else "pb"
         allowed = priority[priority.index(safe_preferred) :]
-        buttons_by_id = {getattr(button, "custom_id", ""): button for button in children}
+        
+        # Map button by normalized key (handles legacy 'pb' and modern 'pokemon:<interaction_id>:pb')
+        buttons_by_ball: dict[str, object] = {}
+        for button in children:
+            cid = str(getattr(button, "custom_id", "") or "").strip()
+            if not cid:
+                continue
+            buttons_by_ball[cid] = button
+            suffix = cid.split(":")[-1]
+            buttons_by_ball[suffix] = button
+
         for ball_id in allowed:
-            if ball_id in buttons_by_id:
-                return buttons_by_id[ball_id]
+            if ball_id in buttons_by_ball:
+                return buttons_by_ball[ball_id]
         return None
 
     def _is_message_for_this_bot(self, message: Message) -> bool:
