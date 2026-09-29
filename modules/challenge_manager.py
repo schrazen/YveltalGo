@@ -56,7 +56,17 @@ def parse_challenges_text(text: str) -> dict[str, Any]:
         if m:
             name = (m.group(1) or m.group(2) or "").strip()
             npc_id = int(m.group(3))
-            entry = {"name": name, "id": npc_id, "tier": current_section}
+            tier = current_section
+            if current_section == "invitations":
+                lower_line = line.lower()
+                if "boss" in lower_line or "elite" in lower_line:
+                    tier = "boss"
+                elif "basic" in lower_line:
+                    tier = "basic"
+                else:
+                    tier = "master"
+
+            entry = {"name": name, "id": npc_id, "tier": tier}
 
             if current_section == "basic":
                 basic_challenges.append(entry)
@@ -103,7 +113,10 @@ def find_eligible_npc_for_quest(
     # 1. Master Challenger Quests
     if "master challenger" in raw:
         # Check active invitations for a master tier challenger
-        master_invites = [inv for inv in invitations if inv.get("tier") == "master"]
+        master_invites = [
+            inv for inv in invitations
+            if inv.get("tier") in ("master", "invitations") or "master" in str(inv.get("tier", "")).lower()
+        ]
         if master_invites:
             target_id = master_invites[0]["id"]
             return True, f"npc {target_id}", f"master_invite:{master_invites[0]['name']}"

@@ -12,6 +12,7 @@ from discord.ext import commands, tasks
 
 from modules.captcha_gate import is_captcha_active, is_in_battle
 from modules.challenge_manager import find_eligible_npc_for_quest, parse_challenges_text
+from modules.pokemeow_reader import parse_quest_board_payload, _utc_now_iso
 from modules.quest_catalog import quest_catalog
 from modules.runtime_file_log import info as runtime_info_log
 
@@ -263,6 +264,12 @@ class QuestManager(commands.Cog):
             from cogs.hunting import safe_request_quest_info
             await safe_request_quest_info(self.bot, channel, cmd_map, source="quest_manager_sync")
 
+    async def _delayed_eval_quests(self, delay_seconds: float) -> None:
+        """Wait delay_seconds and re-evaluate quests."""
+        await asyncio.sleep(delay_seconds)
+        if not is_captcha_active(self.bot):
+            await self.evaluate_and_process_quests(source="post_cooldown_eval")
+
     async def evaluate_and_process_quests(self, source: str = "periodic") -> dict[str, Any]:
         """Core decision engine:
         1. Resets impossible quests (e.g. Mega Chamber) if auto-reset is enabled.
@@ -422,6 +429,35 @@ class QuestManager(commands.Cog):
             embed_desc += " " + str(getattr(em, "description", "") or "").lower()
         combined = (text + " " + embed_desc).lower()
 
+        # 0. Quest Board detection & parsing directly from message
+        if (
+            "complete your quests for rewards" in combined
+            or "quest #1:" in combined
+            or ("your next quest is" in combined and "quest" in combined)
+        ):
+            full_text = str(message.content or "") + " " + embed_desc
+            board_payload = parse_quest_board_payload(full_text)
+            if not hasattr(self.bot, "quest_data") or not isinstance(self.bot.quest_data, dict):
+                self.bot.quest_data = {}
+            if board_payload.get("active_quests"):
+                self.bot.quest_data["active_quests"] = board_payload["active_quests"]
+                if board_payload.get("next_quest"):
+                    self.bot.quest_data["next_quest"] = board_payload["next_quest"]
+                self.bot.quest_data["last_updated_utc"] = _utc_now_iso()
+
+                for q in board_payload["active_quests"]:
+                    q_title = q.get("title", "")
+                    if q_title:
+                        try:
+                            quest_catalog.register_observed_quest(q_title)
+                        except Exception:
+                            pass
+
+                runtime_info_log(
+                    f"[QuestManager] Parsed quest board from message: {len(board_payload['active_quests'])} active quest(s)."
+                )
+                asyncio.create_task(self.evaluate_and_process_quests(source="quest_board_message"))
+
         # 1. Missing Quest Reset Scroll detection
         if "you do not have a quest reset scroll" in combined or "buy a quest reset scroll" in combined:
             runtime_info_log("[QuestManager] PokéMeow reported missing Quest Reset Scroll.")
@@ -429,9 +465,22 @@ class QuestManager(commands.Cog):
                 # Determine which slot was attempted or retry pending
                 asyncio.create_task(self.auto_buy_reset_scroll(retry_slot=self._pending_scroll_buy_for_slot))
 
+        # 1b. Quest Reset Cooldown detection (e.g. wait after /fish)
+        if "before resetting a quest" in combined:
+            m = re.search(r"please wait (\d+)\s*seconds? before resetting a quest", combined)
+            wait_sec = int(m.group(1)) if m else 15
+            runtime_info_log(f"[QuestManager] Reset cooldown active: must wait {wait_sec}s. Resetting internal slot timer.")
+            for slot_key in list(self._last_reset_per_slot.keys()):
+                self._last_reset_per_slot[slot_key] = 0.0
+            asyncio.create_task(self._delayed_eval_quests(wait_sec + 2.0))
+
         # 2. Successful Quest Reset confirmation
-        if "you have successfully reset quest" in combined or "reset your quest" in combined:
-            runtime_info_log("[QuestManager] Quest successfully reset! Refreshing quest info...")
+        if (
+            "quest successfully deleted" in combined
+            or "you have successfully reset quest" in combined
+            or "reset your quest" in combined
+        ):
+            runtime_info_log("[QuestManager] Quest successfully reset/deleted! Refreshing quest info...")
             asyncio.create_task(self._delayed_sync_quest_info(2.5))
 
         # 3. Next Quest Ready notification

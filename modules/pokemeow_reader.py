@@ -643,8 +643,26 @@ def parse_pokemeow_response(
             "raw_text": preview,
         }
 
-    # 19. Quest Board / List
-    if "your next quest is" in lowered and ("quest #1:" in lowered or "complete your quests for rewards" in lowered):
+    # 19. Quest Ready Notification
+    if "your next quest is now ready" in lowered or "next quest is now ready" in lowered:
+        return {
+            "category": "quest_ready",
+            "is_complication": False,
+            "headline": "Your next Quest is now ready!",
+            "details": {
+                "module": "quest",
+                "preview": preview,
+            },
+            "raw_text": preview,
+        }
+
+    # 20. Quest Board / List
+    if (
+        "complete your quests for rewards" in lowered
+        or "quest #1:" in lowered
+        or "quest #" in lowered
+        or ("your next quest is" in lowered and "rewards" in lowered)
+    ):
         parsed_board = parse_quest_board_payload(preview)
         return {
             "category": "quest_board",
@@ -655,19 +673,6 @@ def parse_pokemeow_response(
                 "preview": preview,
                 "next_quest": parsed_board.get("next_quest", ""),
                 "active_quests": parsed_board.get("active_quests", []),
-            },
-            "raw_text": preview,
-        }
-
-    # 20. Quest Ready / Complete
-    if "your next quest is now ready" in lowered:
-        return {
-            "category": "quest_ready",
-            "is_complication": False,
-            "headline": "Your next Quest is now ready!",
-            "details": {
-                "module": "quest",
-                "preview": preview,
             },
             "raw_text": preview,
         }

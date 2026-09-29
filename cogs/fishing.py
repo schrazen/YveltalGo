@@ -387,6 +387,8 @@ class Fishing(commands.Cog):
 
         after_description = after.embeds[0].description or ""
         combined_after_text = f"{after.content or ''}\n{after_description}"
+        lowered_after_description = after_description.lower()
+        lowered_combined = combined_after_text.lower()
 
         if after.content == before.content and after_description == before_description:
             return
@@ -395,7 +397,6 @@ class Fishing(commands.Cog):
             await self._pause_fishing_for_missing_rod(combined_after_text)
             return
 
-        lowered_after_description = after_description.lower()
         if (
             "not even a nibble" in lowered_after_description
             or "got away" in lowered_after_description
@@ -627,7 +628,7 @@ class Fishing(commands.Cog):
         elif "fished" in before_description:
             tasks = []
 
-            if "caught" in after_description or "caught" in lowered_combined:
+            if "caught" in lowered_after_description or "caught" in lowered_combined:
                 ensure_day_mode_window(self.bot)
                 self.bot.fish_catches += 1
                 self.bot.lifetime_fish_catches += 1

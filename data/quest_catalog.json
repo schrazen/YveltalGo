@@ -10,8 +10,8 @@
     "action": "auto_reset",
     "default_action": "auto_reset",
     "battle_mode": null,
-    "times_seen": 33,
-    "last_seen_utc": "2026-09-29T18:12:04.081066+00:00",
+    "times_seen": 38,
+    "last_seen_utc": "2026-09-29T18:35:32.550683+00:00",
     "sample_titles": [
       "Complete the Mega Chamber",
       "Defeat 5 Mega Chambers"
@@ -29,8 +29,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "npc 210",
-    "times_seen": 17,
-    "last_seen_utc": "2026-09-29T18:12:02.743066+00:00",
+    "times_seen": 21,
+    "last_seen_utc": "2026-09-29T18:35:32.571142+00:00",
     "sample_titles": [
       "Defeat a Basic Challenger",
       "⚔️ **Defeat a Basic Challenger**",
@@ -49,8 +49,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "master_challenger",
-    "times_seen": 21,
-    "last_seen_utc": "2026-09-29T18:12:02.691080+00:00",
+    "times_seen": 25,
+    "last_seen_utc": "2026-09-29T18:35:32.560075+00:00",
     "sample_titles": [
       "Defeat a Master Challenger!",
       "Defeat a Master Challenger"
@@ -100,8 +100,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "npc 210",
-    "times_seen": 20,
-    "last_seen_utc": "2026-09-29T18:12:05.780698+00:00",
+    "times_seen": 23,
+    "last_seen_utc": "2026-09-29T18:35:32.548468+00:00",
     "sample_titles": [
       "Defeat 2 Challengers in battle"
     ],
@@ -198,8 +198,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 28,
-    "last_seen_utc": "2026-09-29T18:12:05.779697+00:00",
+    "times_seen": 32,
+    "last_seen_utc": "2026-09-29T18:35:32.562067+00:00",
     "sample_titles": [
       "Encounter 500 Pokemon in the wild",
       "Encounter 500 Pokemon in wild",
@@ -218,10 +218,11 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 3,
-    "last_seen_utc": "2026-09-29T18:12:02.740686+00:00",
+    "times_seen": 7,
+    "last_seen_utc": "2026-09-29T18:35:32.567602+00:00",
     "sample_titles": [
-      "Fish & Catch 25 Pokemon with a Pokelure active!"
+      "Fish & Catch 25 Pokemon with a Pokelure active!",
+      "Fish & Catch 25 Pokemon with a Pokelure active > 💰 R"
     ],
     "is_custom": false
   },
@@ -268,9 +269,11 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 0,
-    "last_seen_utc": "",
-    "sample_titles": [],
+    "times_seen": 2,
+    "last_seen_utc": "2026-09-29T18:25:36.059891+00:00",
+    "sample_titles": [
+      "<:dexcaught:667082939632189451> **Catch 5 <:Rare:667123659822989323> Rare Pokemon**"
+    ],
     "is_custom": false
   },
   {
@@ -332,8 +335,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 27,
-    "last_seen_utc": "2026-09-29T18:12:04.083783+00:00",
+    "times_seen": 34,
+    "last_seen_utc": "2026-09-29T18:35:32.543451+00:00",
     "sample_titles": [
       "Catch 20 Water-type Pokemon",
       "Catch 20 Grass Type Pokemo",
