@@ -20,12 +20,11 @@ from modules.autofight_log import (
     clear_autofight_events,
     get_autofight_events,
 )
-from modules.file_utils import read_tail_lines
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 CONFIG_PATH = BASE_DIR / "config.json"
 DATA_DIR = BASE_DIR / "data"
-STATS_PATH = DATA_DIR / "stats.json" if (DATA_DIR / "stats.json").exists() else BASE_DIR / "stats.json"
+from modules.stats_store import STATS_PATH, get_stats_key, load_stats_for_key, read_all_stats
 UI_DIST_PATH = Path(__file__).resolve().parent / "react-app" / "dist"
 CAPTCHA_SAMPLES_DIR = BASE_DIR / "assets" / "captcha_samples"
 AUTO_SOLVER_ATTEMPTS_PATH = CAPTCHA_SAMPLES_DIR / "auto_solver_attempts.jsonl"
@@ -297,11 +296,12 @@ def _matches_search_query(query: str, *parts: Any) -> bool:
     return needle in haystack
 
 
+from modules.file_utils import read_tail_lines
+
 def _read_jsonl_rows(path: Path, limit: int = 100) -> list[dict[str, Any]]:
     if not path.exists():
         return []
 
-    # Fetch enough tail lines to satisfy the limit (accounting for blanks or invalid JSON)
     fetch_lines = max(limit * 3, 200)
     lines = read_tail_lines(path, max_lines=fetch_lines)
 
@@ -650,10 +650,32 @@ def add_account_to_config():
 
 @app.get("/api/stats")
 def get_stats():
-    stats = read_json(STATS_PATH, {})
+    raw_stats = read_all_stats()
+    normalized = {}
+    for key in raw_stats.keys():
+        st = load_stats_for_key(key)
+        st["day"] = {
+            "encounters": int(st.get("day_encounters", 0)),
+            "catches": int(st.get("day_catches", 0)),
+            "fish_encounters": int(st.get("day_fish_encounters", 0)),
+            "fish_catches": int(st.get("day_fish_catches", 0)),
+            "coins": int(st.get("day_coins_earned", 0)),
+            "hunt_rarity_catches": dict(st.get("day_hunt_rarity_catches", {})),
+            "fish_rarity_catches": dict(st.get("day_fish_rarity_catches", {})),
+        }
+        st["lifetime"] = {
+            "encounters": int(st.get("lifetime_encounters", 0)),
+            "catches": int(st.get("lifetime_catches", 0)),
+            "fish_encounters": int(st.get("lifetime_fish_encounters", 0)),
+            "fish_catches": int(st.get("lifetime_fish_catches", 0)),
+            "coins": int(st.get("lifetime_coins_earned", 0)),
+            "hunt_rarity_catches": dict(st.get("lifetime_hunt_rarity_catches", {})),
+            "fish_rarity_catches": dict(st.get("lifetime_fish_rarity_catches", {})),
+        }
+        normalized[key] = st
     return jsonify(
         {
-            "stats": stats,
+            "stats": normalized,
             "path": str(STATS_PATH),
             "updated": datetime.now(timezone.utc).isoformat(),
         }
@@ -663,10 +685,61 @@ def get_stats():
 @app.get("/api/runtime/status")
 def get_runtime_status():
     if _runtime_status_provider is None:
+        config = read_json(CONFIG_PATH, {})
+        accounts_map = get_accounts_container(config, create_if_missing=False)
+        offline_accounts = []
+        for idx, (token, account_cfg) in enumerate(accounts_map.items(), start=1):
+            if not is_account_config(account_cfg):
+                continue
+            token_str = str(token)
+            account_alerts = account_cfg.get("CaptchaAlerts") if isinstance(account_cfg.get("CaptchaAlerts"), dict) else {}
+            global_alerts = config.get("CaptchaAlerts") if isinstance(config.get("CaptchaAlerts"), dict) else {}
+            configured_ping = str(account_alerts.get("Ping", "") or global_alerts.get("Ping", "")).strip()
+            configured_name = str(account_cfg.get("DisplayName", "") or account_cfg.get("Name", "")).strip()
+            display_name = configured_ping or configured_name or (f"account...{token_str[-6:]}" if len(token_str) >= 6 else f"account#{idx}")
+            stats_key = get_stats_key(token_str)
+            acct_stats = load_stats_for_key(stats_key)
+            offline_accounts.append({
+                "id": stats_key,
+                "label": display_name,
+                "display_name": display_name,
+                "mention_name": configured_ping,
+                "token_suffix": token_str[-6:] if len(token_str) >= 6 else token_str,
+                "hunting_channel_id": int(account_cfg.get("HuntingChannel", 0) or 0),
+                "fishing_channel_id": int(account_cfg.get("FishingChannel", 0) or 0),
+                "running": False,
+                "connecting": False,
+                "username": "Not started",
+                "last_error": "",
+                "day": {
+                    "encounters": int(acct_stats.get("day_encounters", 0)),
+                    "catches": int(acct_stats.get("day_catches", 0)),
+                    "fish_encounters": int(acct_stats.get("day_fish_encounters", 0)),
+                    "fish_catches": int(acct_stats.get("day_fish_catches", 0)),
+                    "coins": int(acct_stats.get("day_coins_earned", 0)),
+                    "hunt_rarity_catches": dict(acct_stats.get("day_hunt_rarity_catches", {})),
+                    "fish_rarity_catches": dict(acct_stats.get("day_fish_rarity_catches", {})),
+                },
+                "lifetime": {
+                    "encounters": int(acct_stats.get("lifetime_encounters", 0)),
+                    "catches": int(acct_stats.get("lifetime_catches", 0)),
+                    "fish_encounters": int(acct_stats.get("lifetime_fish_encounters", 0)),
+                    "fish_catches": int(acct_stats.get("lifetime_fish_catches", 0)),
+                    "coins": int(acct_stats.get("lifetime_coins_earned", 0)),
+                    "hunt_rarity_catches": dict(acct_stats.get("lifetime_hunt_rarity_catches", {})),
+                    "fish_rarity_catches": dict(acct_stats.get("lifetime_fish_rarity_catches", {})),
+                },
+            })
         return jsonify(
             {
                 "available": False,
                 "message": "Runtime control is not attached to this process.",
+                "data": {
+                    "bots": [],
+                    "bot_count": 0,
+                    "accounts": offline_accounts,
+                    "account_count": len(offline_accounts),
+                },
             }
         )
 

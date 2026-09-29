@@ -459,8 +459,28 @@ export default function PokeGrinderDashboard() {
       options.push({ id, label: username && username !== "Not ready" ? username : fallback });
     });
 
+    (accounts || []).forEach((account, idx) => {
+      const id = String(account?.id || "").trim();
+      if (!id || seen.has(id)) {
+        return;
+      }
+      seen.add(id);
+      const label = String(account?.display_name || account?.username || account?.label || `account#${idx + 1}`);
+      options.push({ id, label });
+    });
+
+    Object.keys(stats || {}).forEach((statsKey) => {
+      const id = String(statsKey || "").trim();
+      if (!id || seen.has(id)) {
+        return;
+      }
+      seen.add(id);
+      const label = accountLabelById[id] || `User (${id.slice(0, 8)}...)`;
+      options.push({ id, label });
+    });
+
     return options;
-  }, [bots, accountLabelById]);
+  }, [bots, accounts, stats, accountLabelById]);
 
   useEffect(() => {
     if (selectedUserScope === "all") {
@@ -505,53 +525,107 @@ export default function PokeGrinderDashboard() {
       ? bot.ready
       : Boolean(bot?.username && bot.username !== "Not ready");
 
+  const unifiedAccountStats = useMemo(() => {
+    const idSet = new Set();
+    (bots || []).forEach((b) => {
+      const id = String(b?.id || "").trim();
+      if (id) idSet.add(id);
+    });
+    (accounts || []).forEach((a) => {
+      const id = String(a?.id || "").trim();
+      if (id) idSet.add(id);
+    });
+    Object.keys(stats || {}).forEach((k) => {
+      const id = String(k || "").trim();
+      if (id) idSet.add(id);
+    });
+
+    const activeBotById = {};
+    (bots || []).forEach((b) => {
+      const id = String(b?.id || "").trim();
+      if (id) activeBotById[id] = b;
+    });
+
+    const candidateIds = Array.from(idSet);
+    const filteredIds = selectedUserScope === "all"
+      ? candidateIds
+      : candidateIds.filter((id) => id === selectedUserScope);
+
+    return filteredIds.map((id) => {
+      const liveBot = activeBotById[id];
+      const acct = accountsById[id];
+      const diskStats = stats?.[id] || {};
+
+      const day = liveBot?.day || liveBot?.session || acct?.day || diskStats?.day || {};
+      const lifetime = liveBot?.lifetime || acct?.lifetime || diskStats?.lifetime || {};
+
+      return {
+        id,
+        day,
+        lifetime,
+      };
+    });
+  }, [bots, accounts, stats, accountsById, selectedUserScope]);
+
   const dayTotals = useMemo(
-    () => scopedBots.reduce(
-      (acc, bot) => {
-        const v = bot?.day || bot?.session || {};
-        acc.encounters += Number(v.encounters || 0);
-        acc.catches += Number(v.catches || 0);
-        acc.fishEncounters += Number(v.fish_encounters || 0);
-        acc.fishCatches += Number(v.fish_catches || 0);
-        acc.coins += Number(v.coins || 0);
+    () => unifiedAccountStats.reduce(
+      (acc, item) => {
+        const v = item?.day || {};
+        acc.encounters += Number(v.encounters || v.day_encounters || 0);
+        acc.catches += Number(v.catches || v.day_catches || 0);
+        acc.fishEncounters += Number(v.fish_encounters || v.day_fish_encounters || 0);
+        acc.fishCatches += Number(v.fish_catches || v.day_fish_catches || 0);
+        acc.coins += Number(v.coins || v.day_coins_earned || 0);
         return acc;
       },
       { encounters: 0, catches: 0, fishEncounters: 0, fishCatches: 0, coins: 0 },
     ),
-    [scopedBots],
+    [unifiedAccountStats],
   );
 
   const lifetimeTotals = useMemo(
-    () => scopedBots.reduce(
-      (acc, bot) => {
-        const v = bot?.lifetime || {};
-        acc.encounters += Number(v.encounters || 0);
-        acc.catches += Number(v.catches || 0);
-        acc.fishEncounters += Number(v.fish_encounters || 0);
-        acc.fishCatches += Number(v.fish_catches || 0);
-        acc.coins += Number(v.coins || 0);
+    () => unifiedAccountStats.reduce(
+      (acc, item) => {
+        const v = item?.lifetime || {};
+        acc.encounters += Number(v.encounters || v.lifetime_encounters || 0);
+        acc.catches += Number(v.catches || v.lifetime_catches || 0);
+        acc.fishEncounters += Number(v.fish_encounters || v.lifetime_fish_encounters || 0);
+        acc.fishCatches += Number(v.fish_catches || v.lifetime_fish_catches || 0);
+        acc.coins += Number(v.coins || v.lifetime_coins_earned || 0);
         return acc;
       },
       { encounters: 0, catches: 0, fishEncounters: 0, fishCatches: 0, coins: 0 },
     ),
-    [scopedBots],
+    [unifiedAccountStats],
   );
 
-  const aggregateRarity = (sourceBots, scope, key) => sourceBots.reduce((acc, bot) => {
-    const bucket = bot?.[scope]?.[key] || {};
+  const aggregateRarity = (sourceList, scope, key, flatKey) => sourceList.reduce((acc, item) => {
+    const bucket = item?.[scope]?.[key] || item?.[flatKey] || {};
     Object.entries(bucket).forEach(([name, count]) => {
       acc[name] = (acc[name] || 0) + Number(count || 0);
     });
     return acc;
   }, {});
 
-  const huntSessionRarity = useMemo(() => aggregateRarity(scopedBots, "day", "hunt_rarity_catches"), [scopedBots]);
-  const huntLifetimeRarity = useMemo(() => aggregateRarity(scopedBots, "lifetime", "hunt_rarity_catches"), [scopedBots]);
-  const fishSessionRarity = useMemo(() => aggregateRarity(scopedBots, "day", "fish_rarity_catches"), [scopedBots]);
-  const fishLifetimeRarity = useMemo(() => aggregateRarity(scopedBots, "lifetime", "fish_rarity_catches"), [scopedBots]);
+  const huntSessionRarity = useMemo(
+    () => aggregateRarity(unifiedAccountStats, "day", "hunt_rarity_catches", "day_hunt_rarity_catches"),
+    [unifiedAccountStats],
+  );
+  const huntLifetimeRarity = useMemo(
+    () => aggregateRarity(unifiedAccountStats, "lifetime", "hunt_rarity_catches", "lifetime_hunt_rarity_catches"),
+    [unifiedAccountStats],
+  );
+  const fishSessionRarity = useMemo(
+    () => aggregateRarity(unifiedAccountStats, "day", "fish_rarity_catches", "day_fish_rarity_catches"),
+    [unifiedAccountStats],
+  );
+  const fishLifetimeRarity = useMemo(
+    () => aggregateRarity(unifiedAccountStats, "lifetime", "fish_rarity_catches", "lifetime_fish_rarity_catches"),
+    [unifiedAccountStats],
+  );
 
   const berryRows = useMemo(
-    () => bots
+    () => scopedBots
       .filter((bot) => bot?.berry?.enabled)
       .map((bot) => {
         const berry = bot.berry || {};
@@ -614,11 +688,11 @@ export default function PokeGrinderDashboard() {
           ageLabel,
         };
       }),
-    [bots],
+    [scopedBots],
   );
 
   const runtimeSummary = useMemo(
-    () => bots.reduce(
+    () => scopedBots.reduce(
       (acc, bot) => {
         if (!isBotDiscordReady(bot)) {
           return acc;
@@ -631,7 +705,7 @@ export default function PokeGrinderDashboard() {
       },
       { huntRunning: 0, fishRunning: 0, captcha: 0, limit: 0 },
     ),
-    [bots],
+    [scopedBots],
   );
 
   const limitedEventRows = useMemo(
@@ -1524,10 +1598,12 @@ export default function PokeGrinderDashboard() {
 
   const RarityTable = ({ title, rarityMap }) => {
     const rows = rarityEntries(rarityMap);
+    const totalCatches = rows.reduce((sum, [, count]) => sum + Number(count || 0), 0);
     return (
       <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-md overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-800">
+        <div className="px-4 py-3 border-b border-slate-800 flex justify-between items-center">
           <h3 className="text-sm font-semibold text-slate-200">{title}</h3>
+          <span className="text-xs font-medium text-slate-400">Total: {totalCatches.toLocaleString()}</span>
         </div>
         <div className="max-h-48 overflow-auto">
           <table className="w-full text-left text-sm text-slate-300">
@@ -1535,20 +1611,26 @@ export default function PokeGrinderDashboard() {
               <tr>
                 <th className="px-4 py-2">Rarity</th>
                 <th className="px-4 py-2">Count</th>
+                <th className="px-4 py-2 text-right">Share</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
               {rows.length === 0 && (
                 <tr>
-                  <td className="px-4 py-2 text-slate-500" colSpan={2}>No catches yet</td>
+                  <td className="px-4 py-2 text-slate-500" colSpan={3}>No catches yet</td>
                 </tr>
               )}
-              {rows.map(([name, count]) => (
-                <tr key={name} className="hover:bg-slate-800/30">
-                  <td className="px-4 py-2">{name}</td>
-                  <td className="px-4 py-2 font-mono">{Number(count || 0).toLocaleString()}</td>
-                </tr>
-              ))}
+              {rows.map(([name, count]) => {
+                const c = Number(count || 0);
+                const pct = totalCatches > 0 ? ((c / totalCatches) * 100).toFixed(1) : "0.0";
+                return (
+                  <tr key={name} className="hover:bg-slate-800/30">
+                    <td className="px-4 py-2 font-medium">{name}</td>
+                    <td className="px-4 py-2 font-mono">{c.toLocaleString()}</td>
+                    <td className="px-4 py-2 font-mono text-right text-xs text-slate-400">{pct}%</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -2107,22 +2189,76 @@ export default function PokeGrinderDashboard() {
             {overviewSection === "stats" && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-md overflow-hidden">
-                <div className="px-4 py-2 border-b border-slate-800 text-xs text-slate-400 uppercase tracking-wide">Day Mode Details (Resets 12:00)</div>
+                <div className="px-4 py-2 border-b border-slate-800 flex justify-between items-center text-xs text-slate-400 uppercase tracking-wide">
+                  <span>Day Mode Details (Resets 12:00)</span>
+                  <span className="text-[11px] font-mono lowercase text-slate-500">
+                    {dayTotals.encounters > 0 ? `${((dayTotals.catches / dayTotals.encounters) * 100).toFixed(1)}% catch rate` : "no encounters"}
+                  </span>
+                </div>
                 <div className="grid grid-cols-2 gap-3 p-4">
-                  <div><p className="text-sm text-slate-400 mb-1">Encounters</p><p className="text-2xl font-bold text-white">{dayTotals.encounters.toLocaleString()}</p></div>
-                  <div><p className="text-sm text-slate-400 mb-1">Catches</p><p className="text-2xl font-bold text-white">{dayTotals.catches.toLocaleString()}</p></div>
-                  <div><p className="text-sm text-slate-400 mb-1">Fish E/C</p><p className="text-2xl font-bold text-white">{dayTotals.fishEncounters.toLocaleString()} / {dayTotals.fishCatches.toLocaleString()}</p></div>
-                  <div><p className="text-sm text-slate-400 mb-1">Coins</p><p className="text-2xl font-bold text-yellow-500">{dayTotals.coins.toLocaleString()}</p></div>
+                  <div>
+                    <p className="text-sm text-slate-400 mb-1">Encounters</p>
+                    <p className="text-2xl font-bold text-white">{dayTotals.encounters.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-400 mb-1">Catches</p>
+                    <div className="flex items-baseline gap-2">
+                      <p className="text-2xl font-bold text-white">{dayTotals.catches.toLocaleString()}</p>
+                      <span className="text-xs font-semibold text-emerald-400">
+                        {dayTotals.encounters > 0 ? `${((dayTotals.catches / dayTotals.encounters) * 100).toFixed(1)}%` : "0.0%"}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-400 mb-1">Fish E / C</p>
+                    <div className="flex items-baseline gap-2">
+                      <p className="text-2xl font-bold text-white">{dayTotals.fishEncounters.toLocaleString()} / {dayTotals.fishCatches.toLocaleString()}</p>
+                      <span className="text-xs font-semibold text-cyan-400">
+                        {dayTotals.fishEncounters > 0 ? `${((dayTotals.fishCatches / dayTotals.fishEncounters) * 100).toFixed(1)}%` : "0.0%"}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-400 mb-1">Coins Earned</p>
+                    <p className="text-2xl font-bold text-yellow-500">{dayTotals.coins.toLocaleString()}</p>
+                  </div>
                 </div>
               </div>
 
               <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-md overflow-hidden">
-                <div className="px-4 py-2 border-b border-slate-800 text-xs text-slate-400 uppercase tracking-wide">Lifetime Details</div>
+                <div className="px-4 py-2 border-b border-slate-800 flex justify-between items-center text-xs text-slate-400 uppercase tracking-wide">
+                  <span>Lifetime Details</span>
+                  <span className="text-[11px] font-mono lowercase text-slate-500">
+                    {lifetimeTotals.encounters > 0 ? `${((lifetimeTotals.catches / lifetimeTotals.encounters) * 100).toFixed(1)}% catch rate` : "no encounters"}
+                  </span>
+                </div>
                 <div className="grid grid-cols-2 gap-3 p-4">
-                  <div><p className="text-sm text-slate-400 mb-1">Encounters</p><p className="text-2xl font-bold text-white">{lifetimeTotals.encounters.toLocaleString()}</p></div>
-                  <div><p className="text-sm text-slate-400 mb-1">Catches</p><p className="text-2xl font-bold text-white">{lifetimeTotals.catches.toLocaleString()}</p></div>
-                  <div><p className="text-sm text-slate-400 mb-1">Fish E/C</p><p className="text-2xl font-bold text-white">{lifetimeTotals.fishEncounters.toLocaleString()} / {lifetimeTotals.fishCatches.toLocaleString()}</p></div>
-                  <div><p className="text-sm text-slate-400 mb-1">Coins</p><p className="text-2xl font-bold text-yellow-500">{lifetimeTotals.coins.toLocaleString()}</p></div>
+                  <div>
+                    <p className="text-sm text-slate-400 mb-1">Encounters</p>
+                    <p className="text-2xl font-bold text-white">{lifetimeTotals.encounters.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-400 mb-1">Catches</p>
+                    <div className="flex items-baseline gap-2">
+                      <p className="text-2xl font-bold text-white">{lifetimeTotals.catches.toLocaleString()}</p>
+                      <span className="text-xs font-semibold text-emerald-400">
+                        {lifetimeTotals.encounters > 0 ? `${((lifetimeTotals.catches / lifetimeTotals.encounters) * 100).toFixed(1)}%` : "0.0%"}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-400 mb-1">Fish E / C</p>
+                    <div className="flex items-baseline gap-2">
+                      <p className="text-2xl font-bold text-white">{lifetimeTotals.fishEncounters.toLocaleString()} / {lifetimeTotals.fishCatches.toLocaleString()}</p>
+                      <span className="text-xs font-semibold text-cyan-400">
+                        {lifetimeTotals.fishEncounters > 0 ? `${((lifetimeTotals.fishCatches / lifetimeTotals.fishEncounters) * 100).toFixed(1)}%` : "0.0%"}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-400 mb-1">Coins Earned</p>
+                    <p className="text-2xl font-bold text-yellow-500">{lifetimeTotals.coins.toLocaleString()}</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2146,8 +2282,8 @@ export default function PokeGrinderDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
-                    {bots.length === 0 && (<tr><td className="px-4 py-3 text-slate-500" colSpan={5}>No active bots</td></tr>)}
-                    {bots.map((bot, idx) => {
+                    {scopedBots.length === 0 && (<tr><td className="px-4 py-3 text-slate-500" colSpan={5}>No active bots</td></tr>)}
+                    {scopedBots.map((bot, idx) => {
                       const session = bot.day || bot.session || {};
                       return (
                         <tr key={getBotKey(bot, idx)} className="hover:bg-slate-800/30">

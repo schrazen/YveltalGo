@@ -726,18 +726,15 @@ class Hunting(commands.Cog):
             ensure_day_mode_window(self.bot)
             self.bot.catches += 1
             self.bot.lifetime_catches += 1
-            self.bot.coins_earned += int(
-                after.embeds[0]
-                .footer.text.split("You earned ")[1]
-                .split(" ")[0]
-                .replace(",", "")
-            )
-            self.bot.lifetime_coins_earned += int(
-                after.embeds[0]
-                .footer.text.split("You earned ")[1]
-                .split(" ")[0]
-                .replace(",", "")
-            )
+            try:
+                footer_text = str(getattr(getattr(after.embeds[0], "footer", None), "text", "") or "")
+                if "You earned " in footer_text:
+                    coins_str = footer_text.split("You earned ")[1].split(" ")[0].replace(",", "")
+                    coins = int(coins_str)
+                    self.bot.coins_earned += coins
+                    self.bot.lifetime_coins_earned += coins
+            except Exception:
+                pass
 
             rarity = resolve_hunting_rarity(self.config, before)
             pokemon_name = extract_caught_pokemon_name(after)

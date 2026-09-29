@@ -917,9 +917,12 @@ def get_runtime_snapshot() -> dict:
         if not display_name:
             display_name = f"account#{idx}"
 
+        stats_key = get_stats_key(token)
+        acct_stats = load_stats_for_key(stats_key)
+
         configured.append(
             {
-                "id": get_stats_key(token),
+                "id": stats_key,
                 "label": display_name,
                 "display_name": display_name,
                 "mention_name": ready_user.mention if ready_user is not None else configured_ping or token_mention,
@@ -930,6 +933,24 @@ def get_runtime_snapshot() -> dict:
                 "connecting": bool(bot is not None and not bot.is_ready() and str(startup_failures.get(token, "")).strip() == ""),
                 "username": str(ready_user) if ready_user is not None else "Not ready",
                 "last_error": str(startup_failures.get(token, "")),
+                "day": {
+                    "encounters": int(getattr(bot, "encounters", acct_stats.get("day_encounters", 0))),
+                    "catches": int(getattr(bot, "catches", acct_stats.get("day_catches", 0))),
+                    "fish_encounters": int(getattr(bot, "fish_encounters", acct_stats.get("day_fish_encounters", 0))),
+                    "fish_catches": int(getattr(bot, "fish_catches", acct_stats.get("day_fish_catches", 0))),
+                    "coins": int(getattr(bot, "coins_earned", acct_stats.get("day_coins_earned", 0))),
+                    "hunt_rarity_catches": dict(getattr(bot, "hunt_rarity_catches", acct_stats.get("day_hunt_rarity_catches", {}))),
+                    "fish_rarity_catches": dict(getattr(bot, "fish_rarity_catches", acct_stats.get("day_fish_rarity_catches", {}))),
+                },
+                "lifetime": {
+                    "encounters": int(getattr(bot, "lifetime_encounters", acct_stats.get("lifetime_encounters", 0))),
+                    "catches": int(getattr(bot, "lifetime_catches", acct_stats.get("lifetime_catches", 0))),
+                    "fish_encounters": int(getattr(bot, "lifetime_fish_encounters", acct_stats.get("lifetime_fish_encounters", 0))),
+                    "fish_catches": int(getattr(bot, "lifetime_fish_catches", acct_stats.get("lifetime_fish_catches", 0))),
+                    "coins": int(getattr(bot, "lifetime_coins_earned", acct_stats.get("lifetime_coins_earned", 0))),
+                    "hunt_rarity_catches": dict(getattr(bot, "lifetime_hunt_rarity_catches", acct_stats.get("lifetime_hunt_rarity_catches", {}))),
+                    "fish_rarity_catches": dict(getattr(bot, "lifetime_fish_rarity_catches", acct_stats.get("lifetime_fish_rarity_catches", {}))),
+                },
             }
         )
 
