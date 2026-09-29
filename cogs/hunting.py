@@ -640,20 +640,6 @@ class Hunting(commands.Cog):
         persist_bot_stats(self.bot)
         await self.bot.log()
 
-        # Occasional skip - sometimes don't react immediately to encounter
-        if not high_rarity and self._should_skip_cycle():
-            skip_seconds = randint(2, 8)
-            print(f"[Hunting] Skipping cycle (late reaction): {skip_seconds}s")
-            record_anti_detect_event(
-                str(self.bot.user) if self.bot.user else "unknown",
-                "action_skip",
-                module="hunting",
-                channel_id=self.config.hunting_channel_id,
-                details={"reason": "late_encounter_reaction", "seconds": skip_seconds},
-            )
-            await asyncio.sleep(skip_seconds)
-            return
-
         if high_rarity:
             record_anti_detect_event(
                 str(self.bot.user) if self.bot.user else "unknown",
@@ -662,22 +648,6 @@ class Hunting(commands.Cog):
                 channel_id=self.config.hunting_channel_id,
                 details={"rarity": rarity, "ball": ball},
             )
-        
-        # Cognitive hesitation based on rarity (humans pause before rare/legendary catches)
-        hesitation = await self._get_pre_action_hesitation(rarity=rarity)
-        if hesitation > 0:
-            await asyncio.sleep(hesitation)
-
-        if not high_rarity:
-            if self.config.enable_anti_detection:
-                if hasattr(self.bot, "humanizer") and self.bot.humanizer:
-                    action_delay = self.bot.humanizer.get_natural_jitter(self.config.min_action_delay_seconds, variance=0.2)
-                else:
-                    action_delay = self.config.min_action_delay_seconds
-                await asyncio.sleep(action_delay)
-            else:
-                await asyncio.sleep(self._get_behavioral_delay(self.config.hunting_delay_min, self.config.hunting_delay_max))
-            await self._maybe_take_human_break()
 
         children = [
             child for component in message.components for child in component.children
@@ -687,26 +657,15 @@ class Hunting(commands.Cog):
         if not chosen_button:
             return
 
-        try:
-            channel = message.channel
-            if channel is not None and hasattr(self.bot, "humanizer") and self.bot.humanizer:
-                await self.bot.humanizer.simulate_human_typing(channel, chars_count=len(ball))
+        # Fast human reflex for button click: never let the encounter despawn/timeout.
+        # Humans tap buttons on screen in 120-350ms.
+        hesitation = await self._get_pre_action_hesitation(rarity=rarity)
+        if hesitation > 0:
+            await asyncio.sleep(hesitation)
+        elif not self._max_speed():
+            await asyncio.sleep(randint(100, 250) / 1000)
 
-            if high_rarity:
-                if not self._max_speed():
-                    jitter = (
-                        self.bot.humanizer.get_natural_jitter(0.2, variance=0.2, min_floor=0.08)
-                        if hasattr(self.bot, "humanizer") and self.bot.humanizer
-                        else (randint(80, 300) / 1000)
-                    )
-                    await asyncio.sleep(jitter)
-            else:
-                jitter = (
-                    self.bot.humanizer.get_natural_jitter(0.35, variance=0.25, min_floor=0.1)
-                    if hasattr(self.bot, "humanizer") and self.bot.humanizer
-                    else (randint(0, self.config.suspicion_avoidance) / 1000)
-                )
-                await asyncio.sleep(jitter)
+        try:
             await chosen_button.click()
 
         except InvalidData:
@@ -879,6 +838,8 @@ class Hunting(commands.Cog):
         ):
             # Occasional idle before retrying (looks like human distraction)
             await self._maybe_add_idle_randomness()
+            if self._should_skip_cycle():
+                await asyncio.sleep(randint(2, 4))
 
             if self.config.enable_anti_detection:
                 if hasattr(self.bot, "humanizer") and self.bot.humanizer:

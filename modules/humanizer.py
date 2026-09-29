@@ -133,14 +133,16 @@ class Humanizer:
         is_high = any(k in lowered for k in ["shiny", "legendary", "mythical", "super rare", "ultra beasts", "event"])
 
         if is_high:
-            hesitation = round(random.uniform(1.2, 2.8), 3)
+            # Subtle hesitation: player quickly confirms Masterball/Ultraball
+            hesitation = round(random.uniform(0.18, 0.35), 3)
             event_type = "high_rarity_cognitive_pause"
         elif any(k in lowered for k in ["rare", "uncommon"]):
-            hesitation = round(random.uniform(0.35, 0.9), 3)
+            # Quick human visual recognition
+            hesitation = round(random.uniform(0.10, 0.22), 3)
             event_type = "medium_rarity_hesitation"
         else:
-            if random.random() < 0.50:
-                hesitation = round(random.uniform(0.15, 0.45), 3)
+            if random.random() < 0.35:
+                hesitation = round(random.uniform(0.08, 0.16), 3)
                 event_type = "routine_hesitation"
             else:
                 return 0.0
