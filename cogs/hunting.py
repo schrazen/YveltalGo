@@ -25,6 +25,7 @@ from modules.anti_detect_log import record_anti_detect_event
 from modules.cloudflare_indicator import is_cloudflare_1015_error, notify_cloudflare_in_channel
 from modules.rare_catch_log import record_rare_catch_event
 from modules.retrieved_item_log import record_retrieved_item_event
+from modules.pokemeow_reader import inspect_and_record_pokemeow_message
 
 POKEMEOW_APP_ID = 664508672713424926
 
@@ -230,6 +231,9 @@ class Hunting(commands.Cog):
         self.config: Config = bot.config
         self.break_coordinator = break_coordinator
         self._processed_catch_message_ids: dict[int, float] = {}
+        self._last_hunt_ball: str = "pb"
+        self._last_hunt_pokemon: str = ""
+        self._last_hunt_rarity: str = ""
 
     def _max_speed(self) -> bool:
         return bool(getattr(self.config, "max_speed_mode_enabled", False))
@@ -550,6 +554,7 @@ class Hunting(commands.Cog):
             return
 
         if "Please wait" in message.content:
+            inspect_and_record_pokemeow_message(self.bot, message, context_module="hunting")
             record_anti_detect_event(
                 str(self.bot.user) if self.bot.user else "unknown",
                 "please_wait",
@@ -584,6 +589,7 @@ class Hunting(commands.Cog):
             return
 
         if not message.embeds:
+            inspect_and_record_pokemeow_message(self.bot, message, context_module="hunting")
             return
 
         embed_description = message.embeds[0].description or ""
@@ -594,6 +600,7 @@ class Hunting(commands.Cog):
             or "you have reached the daily catch limit" in lowered_embed_description
             or "you have reached the daily encounter limit" in lowered_embed_description
         ):
+            inspect_and_record_pokemeow_message(self.bot, message, context_module="hunting")
             await self._handle_daily_limit()
             return
 
@@ -604,9 +611,11 @@ class Hunting(commands.Cog):
             rarity = resolve_hunting_rarity(self.config, message)
             pokemon_name = extract_pokemon_name(message)
             self._record_retrieved_item_from_message(message, rarity, pokemon_name)
+            inspect_and_record_pokemeow_message(self.bot, message, context_module="hunting")
             return
 
         if "found a wild" not in message.content:
+            inspect_and_record_pokemeow_message(self.bot, message, context_module="hunting")
             return
 
         self.bot.hunting_status = "Grinding..."
@@ -624,6 +633,10 @@ class Hunting(commands.Cog):
             ball = self.config.balls.get(rarity, self.config.balls.get("Common", "pb"))
         high_rarity = self._is_high_rarity(rarity) or ball in {"mb", "db", "prb"}
 
+        self._last_hunt_ball = ball
+        self._last_hunt_pokemon = name
+        self._last_hunt_rarity = rarity
+
         record_anti_detect_event(
             str(self.bot.user) if self.bot.user else "unknown",
             "encounter",
@@ -636,6 +649,12 @@ class Hunting(commands.Cog):
                 "pokemon_slug": normalize_pokemon_slug(name),
                 "high_priority": high_rarity,
             },
+        )
+        inspect_and_record_pokemeow_message(
+            self.bot,
+            message,
+            context_module="hunting",
+            ball_used=ball,
         )
         persist_bot_stats(self.bot)
         await self.bot.log()
@@ -771,6 +790,14 @@ class Hunting(commands.Cog):
 
             await self.bot.log()
 
+            inspect_and_record_pokemeow_message(
+                self.bot,
+                after,
+                before_message=before,
+                context_module="hunting",
+                ball_used=getattr(self, "_last_hunt_ball", ""),
+            )
+
             if "has been added to your Pokedex" not in after.embeds[0].description:
                 self.bot.duplicates += 1
 
@@ -789,6 +816,46 @@ class Hunting(commands.Cog):
                         self.bot.hunting_channel_commands["release duplicates"]()
                     )
                 )
+
+        elif any(marker in (after.embeds[0].description or "").lower() for marker in ("ran away", "got away", "fled", "broke free")):
+            rarity = resolve_hunting_rarity(self.config, before)
+            pokemon_name = extract_caught_pokemon_name(after)
+            if pokemon_name == "Unknown":
+                pokemon_name = extract_pokemon_name(after)
+            if pokemon_name == "Unknown":
+                pokemon_name = extract_pokemon_name(before)
+            if pokemon_name == "Unknown":
+                pokemon_name = getattr(self, "_last_hunt_pokemon", "Unknown")
+            ball_used = getattr(self, "_last_hunt_ball", "")
+
+            record_anti_detect_event(
+                str(self.bot.user) if self.bot.user else "unknown",
+                "hunt_flee",
+                module="hunting",
+                channel_id=self.config.hunting_channel_id,
+                details={
+                    "rarity": rarity,
+                    "pokemon_name": pokemon_name,
+                    "ball_used": ball_used,
+                    "desc": (after.embeds[0].description or "")[:120],
+                },
+            )
+            inspect_and_record_pokemeow_message(
+                self.bot,
+                after,
+                before_message=before,
+                context_module="hunting",
+                ball_used=ball_used,
+            )
+            await self.bot.log()
+        else:
+            inspect_and_record_pokemeow_message(
+                self.bot,
+                after,
+                before_message=before,
+                context_module="hunting",
+                ball_used=getattr(self, "_last_hunt_ball", ""),
+            )
 
         if "Your next Quest is now ready!" in before.content:
             if not self._max_speed():

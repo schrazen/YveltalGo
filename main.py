@@ -23,6 +23,7 @@ from cogs.berry import BerryGarden
 from cogs.catchbot import CatchBot
 from cogs.autofight import AutoFight
 from cogs.limited_events import LimitedEvents
+from cogs.pokemeow_reader_cog import PokeMeowReaderCog
 from modules.logging import logger
 from modules.stats_store import get_stats_key, load_stats_for_key, persist_bot_stats, ensure_day_mode_window
 from cogs.startup import Startup, Config
@@ -524,6 +525,7 @@ async def start_bots(token: str) -> None:
     await add_cog_compat(bot, LimitedEvents(bot))
     await add_cog_compat(bot, Captcha(bot))
     await add_cog_compat(bot, Egg(bot))
+    await add_cog_compat(bot, PokeMeowReaderCog(bot))
 
     runtime_info_log("start_bots: all cogs loaded; awaiting bot.start (Discord gateway) account_id=%s", account_id)
     try:

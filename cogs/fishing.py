@@ -13,6 +13,7 @@ from cogs.startup import Config
 from modules.stats_store import persist_bot_stats, ensure_day_mode_window
 from modules.anti_detect_log import record_anti_detect_event
 from modules.cloudflare_indicator import is_cloudflare_1015_error, notify_cloudflare_in_channel
+from modules.pokemeow_reader import inspect_and_record_pokemeow_message
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 _fishes_file = BASE_DIR / "data" / "fishes.json"
@@ -41,6 +42,8 @@ class Fishing(commands.Cog):
         self.bot = bot
         self.config: Config = bot.config
         self.break_coordinator = break_coordinator
+        self._last_fish_ball: str = "pb"
+        self._last_fish_rarity: str = ""
 
     def _max_speed(self) -> bool:
         return bool(getattr(self.config, "max_speed_mode_enabled", False))
@@ -287,12 +290,15 @@ class Fishing(commands.Cog):
             return
 
         if self._contains_no_rod_signal(message.content):
+            inspect_and_record_pokemeow_message(self.bot, message, context_module="fishing")
             await self._pause_fishing_for_missing_rod(message.content)
             return
 
         if "Please wait" not in message.content:
+            inspect_and_record_pokemeow_message(self.bot, message, context_module="fishing")
             return
 
+        inspect_and_record_pokemeow_message(self.bot, message, context_module="fishing")
         record_anti_detect_event(
             str(self.bot.user) if self.bot.user else "unknown",
             "please_wait",
@@ -380,6 +386,13 @@ class Fishing(commands.Cog):
                     "rarity": previous_rarity,
                     "high_priority": high_priority_escape,
                 },
+            )
+            inspect_and_record_pokemeow_message(
+                self.bot,
+                after,
+                before_message=before,
+                context_module="fishing",
+                ball_used=getattr(self, "_last_fish_ball", ""),
             )
             if high_priority_escape:
                 record_anti_detect_event(
@@ -494,6 +507,8 @@ class Fishing(commands.Cog):
             rarity = resolve_fishing_rarity(after_description)
             ball = self.config.fish_balls.get(rarity, self.config.fish_balls.get("Common", "pb"))
             high_rarity = self._is_high_rarity(rarity) or ball in {"mb", "db", "prb"}
+            self._last_fish_ball = ball
+            self._last_fish_rarity = rarity
             record_anti_detect_event(
                 str(self.bot.user) if self.bot.user else "unknown",
                 "fish_encounter",
@@ -504,6 +519,12 @@ class Fishing(commands.Cog):
                     "rarity": rarity,
                     "high_priority": high_rarity,
                 },
+            )
+            inspect_and_record_pokemeow_message(
+                self.bot,
+                after,
+                context_module="fishing",
+                ball_used=ball,
             )
             persist_bot_stats(self.bot)
             await self.bot.log()
@@ -586,6 +607,14 @@ class Fishing(commands.Cog):
                 )
                 await self.bot.log()
 
+                inspect_and_record_pokemeow_message(
+                    self.bot,
+                    after,
+                    before_message=before,
+                    context_module="fishing",
+                    ball_used=getattr(self, "_last_fish_ball", ""),
+                )
+
                 if (
                     self.config.auto_release_duplicates != 0
                     and self.bot.duplicates >= self.config.auto_release_duplicates
@@ -601,6 +630,37 @@ class Fishing(commands.Cog):
                             self.bot.fishing_channel_commands["release duplicates"]()
                         )
                     )
+
+            elif any(marker in after_description.lower() for marker in ("got away", "ran away", "broke free", "fled")):
+                rarity = resolve_fishing_rarity(before_description)
+                ball_used = getattr(self, "_last_fish_ball", "")
+                record_anti_detect_event(
+                    str(self.bot.user) if self.bot.user else "unknown",
+                    "fish_flee",
+                    module="fishing",
+                    channel_id=self.config.fishing_channel_id,
+                    details={
+                        "rarity": rarity,
+                        "ball_used": ball_used,
+                        "desc": after_description[:120],
+                    },
+                )
+                inspect_and_record_pokemeow_message(
+                    self.bot,
+                    after,
+                    before_message=before,
+                    context_module="fishing",
+                    ball_used=ball_used,
+                )
+                await self.bot.log()
+            else:
+                inspect_and_record_pokemeow_message(
+                    self.bot,
+                    after,
+                    before_message=before,
+                    context_module="fishing",
+                    ball_used=getattr(self, "_last_fish_ball", ""),
+                )
 
             if "Your next Quest is now ready!" in before.content:
                 if not self._max_speed():

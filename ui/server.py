@@ -1264,6 +1264,38 @@ def get_session_analysis():
         return jsonify({"ok": False, "error": str(exc)}), 500
 
 
+@app.get("/api/session/complications")
+def get_session_complications_route():
+    try:
+        from modules.pokemeow_reader import get_session_complications_summary
+        hours_raw = request.args.get("hours", default=None, type=float)
+        minutes_raw = request.args.get("minutes", default=None, type=int)
+        account = request.args.get("account", default=None, type=str)
+        now = datetime.now(timezone.utc)
+        since_dt = None
+        if minutes_raw:
+            since_dt = now - timedelta(minutes=minutes_raw)
+        elif hours_raw:
+            since_dt = now - timedelta(hours=hours_raw)
+        summary = get_session_complications_summary(since_dt=since_dt, account=account)
+        return jsonify({"ok": True, **summary})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
+@app.get("/api/session/events")
+def get_session_events_route():
+    try:
+        from modules.pokemeow_reader import get_recent_pokemeow_events
+        limit = request.args.get("limit", default=100, type=int)
+        category = request.args.get("category", default=None, type=str)
+        complications_only = str(request.args.get("complications", "false")).lower() in {"1", "true", "yes"}
+        events = get_recent_pokemeow_events(limit=limit, category=category, complications_only=complications_only)
+        return jsonify({"ok": True, "count": len(events), "events": events})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
 @app.post("/api/runtime/action")
 def runtime_action():
     if _runtime_action_handler is None:
