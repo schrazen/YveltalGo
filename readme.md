@@ -72,8 +72,8 @@ Automated, multi-account PokéMeow automation suite equipped with an intelligent
 
 #### 1. Clone the repository
 ```bash
-git clone https://github.com/schrazen/PokeGrinder.git
-cd PokeGrinder
+git clone https://github.com/schrazen/YveltalGo.git
+cd YveltalGo
 ```
 
 #### 2. Set up Python environment
@@ -81,19 +81,19 @@ cd PokeGrinder
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r PokeGrinder/requirements.txt
+pip install -r requirements.txt
 ```
 
 **Linux / macOS:**
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r PokeGrinder/requirements.txt
+pip install -r requirements.txt
 ```
 
 #### 3. Install Dashboard UI dependencies
 ```bash
-cd PokeGrinder/ui/react-app
+cd ui/react-app
 npm install
 cd ../../
 ```
@@ -104,9 +104,9 @@ cd ../../
 
 1. Copy the example configuration template:
    ```bash
-   cp PokeGrinder/config.example.json PokeGrinder/config.json
+   cp config.example.json config.json
    ```
-2. Open `PokeGrinder/config.json` in your editor and configure your accounts:
+2. Open `config.json` in your editor and configure your accounts:
    ```json
    {
      "Accounts": {
@@ -130,7 +130,7 @@ cd ../../
 
 ---
 
-## 🖥️ Running PokeGrinder
+## 🖥️ Running YveltalGo
 
 ### Quick Launch (Windows)
 Double-click [`run_pokegrinder.bat`](run_pokegrinder.bat) in the repository root to start both backend services and the Electron desktop window.
@@ -147,10 +147,10 @@ From the workspace root:
 ### Manual Launch (All Platforms)
 ```bash
 # Terminal 1: Backend
-python PokeGrinder/main.py
+python main.py
 
 # Terminal 2: UI
-cd PokeGrinder/ui/react-app
+cd ui/react-app
 npm run dev
 ```
 
@@ -160,40 +160,39 @@ npm run dev
 
 ```
 ├── run_pokegrinder.bat               # Root Windows one-click launcher
-├── readme.md                         # Project documentation
+├── README.md                         # Project documentation
 ├── .gitignore                        # Root gitignore protecting all secrets/logs
-└── PokeGrinder/
-    ├── main.py                       # Application entry point & bot runner
-    ├── config.example.json           # Sanitized configuration template
-    ├── requirements.txt              # Python dependencies
-    ├── SETUP.md                      # In-depth setup & troubleshooting guide
-    ├── assets/
-    │   └── Solver100k.pt             # Pre-trained YOLO captcha solver model
-    ├── cogs/                         # PokéMeow automation cogs
-    │   ├── hunting.py                # Spawn handling & catch automation
-    │   ├── fishing.py                # Fishing cooldown loop
-    │   ├── autofight.py              # Intelligent battle simulator
-    │   ├── captcha.py                # Captcha detector & handler
-    │   ├── berry.py                  # Berry garden watering automation
-    │   ├── egg.py                    # Egg incubation
-    │   └── catchbot.py               # CatchBot loot claiming
-    ├── modules/                      # Utilities, parsers & anti-detection
-    │   ├── captcha_solver.py         # YOLO inference & image preprocessing
-    │   ├── humanizer.py              # Behavioral jitter & break timers
-    │   ├── break_coordinator.py      # Multi-account break coordinator
-    │   ├── cloudflare_indicator.py   # Gateway & rate-limit monitor
-    │   └── pokemeow_battle_parser.py # Battle embed parsing & damage calculator
-    └── ui/
-        ├── server.py                 # Flask REST telemetry API
-        └── react-app/                # React + Tailwind + Electron dashboard
+├── main.py                           # Application entry point & bot runner
+├── config.example.json               # Sanitized configuration template
+├── requirements.txt                  # Python dependencies
+├── SETUP.md                          # In-depth setup & troubleshooting guide
+├── assets/
+│   └── Solver100k.pt                 # Pre-trained YOLO captcha solver model
+├── cogs/                             # PokéMeow automation cogs
+│   ├── hunting.py                    # Spawn handling & catch automation
+│   ├── fishing.py                    # Fishing cooldown loop
+│   ├── autofight.py                  # Intelligent battle simulator
+│   ├── captcha.py                    # Captcha detector & handler
+│   ├── berry.py                      # Berry garden watering automation
+│   ├── egg.py                        # Egg incubation
+│   └── catchbot.py                   # CatchBot loot claiming
+├── modules/                          # Utilities, parsers & anti-detection
+│   ├── captcha_solver.py             # YOLO inference & image preprocessing
+│   ├── humanizer.py                  # Behavioral jitter & break timers
+│   ├── break_coordinator.py          # Multi-account break coordinator
+│   ├── cloudflare_indicator.py       # Gateway & rate-limit monitor
+│   └── pokemeow_battle_parser.py     # Battle embed parsing & damage calculator
+└── ui/
+    ├── server.py                     # Flask REST telemetry API
+    └── react-app/                    # React + Tailwind + Electron dashboard
 ```
 
 ---
 
 ## 📄 License & Code of Conduct
 
-- Distributed under the terms in [LICENSE](PokeGrinder/LICENSE).
-- Community guidelines: [CODE_OF_CONDUCT.md](PokeGrinder/CODE_OF_CONDUCT.md).
+- Distributed under the terms in [LICENSE](LICENSE).
+- Community guidelines: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 ---
 

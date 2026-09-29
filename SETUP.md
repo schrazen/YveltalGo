@@ -19,8 +19,8 @@ This guide is the source of truth for setting up PokeGrinder from a fresh clone.
 
 ### 1. Clone and enter project
 ```bash
-git clone https://github.com/schrazen/something.git
-cd something/PokeGrinder
+git clone https://github.com/schrazen/YveltalGo.git
+cd YveltalGo
 ```
 
 ### 2. Create virtual environment
