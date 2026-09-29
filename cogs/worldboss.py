@@ -8,11 +8,18 @@ from time import time
 from typing import Any, Dict, List, Optional
 
 from discord import InvalidData, Message
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 from cogs.startup import Config
 from modules.battle_state import ParsedBattleState, normalize, parse_battle_state
+from modules.captcha_gate import is_captcha_active, is_in_battle
 from modules.pokemeow_battle_parser import parse_pokemeow_battle_events
+from modules.worldboss_estimator import (
+    WorldBossEstimator,
+    parse_future_boss_seconds,
+    parse_last_defeated_seconds,
+    parse_vote_progress,
+)
 from modules.worldboss_strategies import (
     WORLD_BOSS_STRATEGIES,
     WorldBossActionDecider,
@@ -54,6 +61,7 @@ class WorldBoss(commands.Cog):
         self.decider = WorldBossActionDecider(
             danger_hp_percent=int(getattr(self.config, "wb_danger_hp_percent", 40) or 40)
         )
+        self.estimator = WorldBossEstimator()
         self.last_action_signature = ""
         self.last_action_at = 0.0
         self.last_fight_attempt_at = 0.0
@@ -73,6 +81,82 @@ class WorldBoss(commands.Cog):
         self._pokemon_type_cache: Dict[str, List[str]] = {}
         self._pokeapi_db_path = Path(__file__).resolve().parents[1] / "pokeapi_cache.sqlite3"
         self.bot.world_boss_active = False
+
+        if (
+            bool(getattr(self.config, "world_boss_enabled", False))
+            and int(getattr(self.config, "world_boss_channel_id", 0) or 0) != 0
+        ):
+            try:
+                self.adaptive_probe_loop.start()
+            except RuntimeError:
+                pass
+
+    def cog_unload(self) -> None:
+        if self.adaptive_probe_loop.is_running():
+            self.adaptive_probe_loop.cancel()
+        self._cancel_pending_fight_task()
+
+    @tasks.loop(seconds=15.0)
+    async def adaptive_probe_loop(self) -> None:
+        """Periodic loop that dynamically evaluates if an adaptive maintenance probe (;wb) should be dispatched."""
+        if not bool(getattr(self.config, "world_boss_enabled", False)):
+            return
+
+        channel_id = int(getattr(self.config, "world_boss_channel_id", 0) or 0)
+        if channel_id == 0:
+            return
+
+        if getattr(self.bot, "world_boss_active", False):
+            return
+
+        if is_captcha_active(self.bot, channel_id):
+            return
+
+        if is_in_battle(self.bot) or bool(getattr(self.bot, "autofight_active", False)):
+            return
+
+        now = time()
+        should_probe, reason = self.estimator.should_probe(now)
+        if not should_probe:
+            return
+
+        channel = self.bot.get_channel(channel_id)
+        if channel is None:
+            try:
+                channel = await self.bot.fetch_channel(channel_id)
+            except Exception:
+                return
+
+        if channel is None:
+            return
+
+        self.estimator.record_probe(now)
+        jitter = randint(500, max(600, int(getattr(self.config, "suspicion_avoidance", 250) or 250))) / 1000.0
+        await asyncio.sleep(jitter)
+        try:
+            print(f"[WorldBoss] Adaptive maintenance probe sent (;wb) -> {reason} | {self.estimator.get_status_summary(now)}")
+            if not self.config.wb_dry_run:
+                await channel.send(";wb")
+        except Exception as exc:
+            pass
+
+    @adaptive_probe_loop.before_loop
+    async def before_adaptive_probe_loop(self) -> None:
+        if hasattr(self.bot, "wait_until_ready"):
+            await self.bot.wait_until_ready()
+
+    @commands.Cog.listener()
+    async def on_ready(self) -> None:
+        if (
+            bool(getattr(self.config, "world_boss_enabled", False))
+            and int(getattr(self.config, "world_boss_channel_id", 0) or 0) != 0
+            and not self.adaptive_probe_loop.is_running()
+        ):
+            print(f"[WorldBoss] Adaptive estimation & probe loop started for channel {self.config.world_boss_channel_id}...")
+            try:
+                self.adaptive_probe_loop.start()
+            except RuntimeError:
+                pass
 
     def _in_world_boss_channel(self, channel_id: int) -> bool:
         configured_id = int(getattr(self.config, "world_boss_channel_id", 0) or 0)
@@ -396,7 +480,11 @@ class WorldBoss(commands.Cog):
                 status = "ON" if bool(getattr(self.config, "world_boss_enabled", False)) else "OFF"
                 boss = self.decider.current_boss_name or "None"
                 active = self.decider.active_pokemon_name or "None"
-                await message.channel.send(f"WorldBoss auto: {status} | Boss: {boss} | Active: {active}")
+                est_summary = self.estimator.get_status_summary()
+                await message.channel.send(
+                    f"WorldBoss auto: {status} | Boss: {boss} | Active: {active}\n"
+                    f"Estimation: {est_summary}"
+                )
                 return
 
         if not bool(getattr(self.config, "world_boss_enabled", False)):
@@ -423,6 +511,22 @@ class WorldBoss(commands.Cog):
         if enemy_name:
             self.last_enemy_name = enemy_name
 
+        # Check vote progress (e.g. 232 / 250 ;votes)
+        vote_data = parse_vote_progress(message_blob)
+        if vote_data:
+            curr_v, targ_v = vote_data
+            self.estimator.record_vote_status(curr_v, targ_v)
+
+        # Check last defeated time (e.g. 38 minutes ago)
+        last_def_secs = parse_last_defeated_seconds(message_blob)
+        if last_def_secs is not None:
+            self.estimator.record_last_defeated(last_def_secs)
+
+        # Check for explicit future countdown from PokéMeow status response
+        future_secs = parse_future_boss_seconds(message_blob)
+        if future_secs:
+            self.estimator.record_explicit_countdown(future_secs)
+
         # 1. Registration prompts
         if any(
             token in message_blob
@@ -432,6 +536,7 @@ class WorldBoss(commands.Cog):
                 "registration is open",
             )
         ):
+            self.estimator.record_spawn(self.last_enemy_name or "WorldBoss")
             register_button = self._find_register_button(actionable_message)
             if register_button is not None and not self.config.wb_dry_run:
                 try:
@@ -444,6 +549,8 @@ class WorldBoss(commands.Cog):
 
         # 2. Countdown parsing & Scheduling
         if self._schedule_fight_start(message, message_blob):
+            countdown_seconds = self._extract_fight_delay_seconds(message_blob)
+            self.estimator.record_spawn(self.last_enemy_name or "WorldBoss", countdown_seconds)
             self.bot.world_boss_status = "WorldBoss fight scheduled"
             await self.bot.log()
             return
@@ -454,6 +561,7 @@ class WorldBoss(commands.Cog):
         # 3. Terminal detection without buttons
         if "your team has been defeated" in message_blob or "you lost the battle" in message_blob:
             self._log_check("terminal", matched=True, outcome="loss")
+            self.estimator.record_completion(self.last_enemy_name or "WorldBoss", "loss")
             self.bot.world_boss_status = "WorldBoss battle lost"
             self._reset_fight()
             await self.bot.log()
@@ -461,6 +569,7 @@ class WorldBoss(commands.Cog):
 
         if "world boss has been defeated" in message_blob or "you won the battle" in message_blob:
             self._log_check("terminal", matched=True, outcome="win")
+            self.estimator.record_completion(self.last_enemy_name or "WorldBoss", "win")
             self.bot.world_boss_status = "WorldBoss defeated!"
             self._reset_fight()
             await self.bot.log()
@@ -482,12 +591,14 @@ class WorldBoss(commands.Cog):
             self.last_enemy_name = boss_name
 
         if state.terminal_win:
+            self.estimator.record_completion(self.last_enemy_name or "WorldBoss", "win")
             self.bot.world_boss_status = "WorldBoss defeated!"
             self._reset_fight()
             await self.bot.log()
             return
 
         if state.terminal_loss:
+            self.estimator.record_completion(self.last_enemy_name or "WorldBoss", "loss")
             self.bot.world_boss_status = "WorldBoss battle lost"
             self._reset_fight()
             await self.bot.log()
