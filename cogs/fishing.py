@@ -351,10 +351,10 @@ class Fishing(commands.Cog):
             await self._pause_fishing_for_missing_rod(combined_after_text)
             return
 
-        lowered_after_description = after_description.lower()
+        lowered_combined = combined_after_text.lower()
         if (
-            "not even a nibble" in lowered_after_description
-            or "got away" in lowered_after_description
+            "not even a nibble" in lowered_combined
+            or "got away" in lowered_combined
         ):
             previous_rarity = resolve_fishing_rarity(before_description)
             high_priority_escape = self._is_high_rarity(previous_rarity)
@@ -527,7 +527,7 @@ class Fishing(commands.Cog):
         elif "fished" in before_description:
             tasks = []
 
-            if "caught" in after_description:
+            if "caught" in lowered_combined:
                 ensure_day_mode_window(self.bot)
                 self.bot.fish_catches += 1
                 self.bot.lifetime_fish_catches += 1
