@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from main import PokeGrinder
 
 from modules.berry_parser import parse_berry_garden
+from modules.captcha_gate import is_captcha_active
 
 POKEMEOW_APP_ID = 664508672713424926
 
@@ -216,7 +217,12 @@ class BerryGarden(commands.Cog):
                 self.empty_suppression_notified = True
             return False
 
+        if is_captcha_active(self.bot):
+            return False
+
         await self._ensure_berry_context()
+        if is_captcha_active(self.bot):
+            return False
         command_key, command = self._resolve_berry_command()
         if command is not None:
             self.last_check_trigger_time = time.time()
@@ -325,6 +331,9 @@ class BerryGarden(commands.Cog):
         return value
 
     async def _send_berry_text_command(self, command_text: str, reason: str) -> None:
+        if is_captcha_active(self.bot):
+            return
+
         if not bool(getattr(self.bot, "server_scope_valid", True)):
             return
 
@@ -338,6 +347,8 @@ class BerryGarden(commands.Cog):
 
         # Small jitter to avoid exact mechanical cadence and avoid edge-case cooldowns.
         await asyncio.sleep(uniform(0.2, 0.6))
+        if is_captcha_active(self.bot):
+            return
         await self.bot.berry_channel.send(command_text)
         self.last_berry_command_at = time.time()
 
@@ -358,6 +369,8 @@ class BerryGarden(commands.Cog):
         async def _runner():
             try:
                 await asyncio.sleep(max(1.0, delay_seconds))
+                if is_captcha_active(self.bot):
+                    return
                 if self.pending_water_slots and not self.water_in_progress:
                     self.water_in_progress = True
                     self.last_water_time = time.time()
@@ -371,6 +384,8 @@ class BerryGarden(commands.Cog):
     async def berry_check_loop(self):
         """Check garden status every 15 minutes."""
         try:
+            if is_captcha_active(self.bot):
+                return
             if not bool(getattr(self.bot, "server_scope_valid", True)):
                 return
             await self.trigger_berry_check(source="loop")

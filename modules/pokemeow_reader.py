@@ -163,6 +163,71 @@ def _load_recent_from_disk(max_lines: int = 3000) -> None:
 _load_recent_from_disk()
 
 
+def parse_quest_board_payload(text: str) -> dict[str, Any]:
+    next_quest = ""
+    nq_m = re.search(r"your next quest is\s*(?:[^\w\s]*\s*)*([^!]+!?)", text, re.IGNORECASE)
+    if nq_m:
+        raw_nq = nq_m.group(1).strip()
+        next_quest = re.sub(r"^[^\w]+", "", raw_nq).strip()
+        next_quest = re.split(r"complete your quests", next_quest, flags=re.IGNORECASE)[0].strip()
+
+    active_quests = []
+    q_parts = re.split(r"Quest\s*#(\d+):", text, flags=re.IGNORECASE)
+    if len(q_parts) > 1:
+        for i in range(1, len(q_parts), 2):
+            q_num = int(q_parts[i])
+            body = q_parts[i + 1]
+            title_part = re.split(r">\s*.*Rewards:", body, flags=re.IGNORECASE)
+            title = ""
+            if title_part:
+                title = re.sub(r"^[^\w]+", "", title_part[0]).strip()
+            rew_m = re.search(r"Rewards:\s*([^>\n\r]+)", body, re.IGNORECASE)
+            rewards = rew_m.group(1).strip() if rew_m else ""
+            prog_m = re.search(r"Progress:\s*([^\n\r]+)", body, re.IGNORECASE)
+            progress_str = prog_m.group(1).strip() if prog_m else ""
+
+            cur_prog = 0
+            tot_prog = 1
+            num_m = re.search(r"(\d[\d,]*)\s*(?:out of|/)\s*(\d[\d,]*)", progress_str, re.IGNORECASE)
+            if num_m:
+                try:
+                    cur_prog = int(num_m.group(1).replace(",", ""))
+                    tot_prog = int(num_m.group(2).replace(",", ""))
+                except Exception:
+                    pass
+
+            active_quests.append({
+                "id": q_num,
+                "title": title,
+                "rewards": rewards,
+                "progress_str": progress_str,
+                "progress_current": cur_prog,
+                "progress_total": tot_prog,
+            })
+
+    return {
+        "next_quest": next_quest,
+        "active_quests": active_quests,
+    }
+
+
+def parse_quest_complete_payload(text: str) -> dict[str, Any]:
+    quest_name = ""
+    rewards = ""
+    exp = ""
+    m = re.search(r"completed the quest\s+(.+?)\s+and received:\s*([^!]+!)(?:\s*(.+?\bgained\s+[^\n\r!]+!?))?", text, re.IGNORECASE)
+    if m:
+        quest_name = m.group(1).strip()
+        rewards = m.group(2).strip()
+        if m.group(3):
+            exp = m.group(3).strip()
+    return {
+        "quest_name": quest_name,
+        "rewards": rewards,
+        "exp": exp,
+    }
+
+
 def parse_pokemeow_response(
     message: Message,
     before_message: Optional[Message] = None,
@@ -512,6 +577,7 @@ def parse_pokemeow_response(
 
     # 19. Quest Board / List
     if "your next quest is" in lowered and ("quest #1:" in lowered or "complete your quests for rewards" in lowered):
+        parsed_board = parse_quest_board_payload(preview)
         return {
             "category": "quest_board",
             "is_complication": False,
@@ -519,6 +585,8 @@ def parse_pokemeow_response(
             "details": {
                 "module": "quest",
                 "preview": preview,
+                "next_quest": parsed_board.get("next_quest", ""),
+                "active_quests": parsed_board.get("active_quests", []),
             },
             "raw_text": preview,
         }
@@ -536,6 +604,7 @@ def parse_pokemeow_response(
             "raw_text": preview,
         }
     if any(m in lowered for m in ["completed the quest", "quest complete", "completed a quest"]):
+        parsed_comp = parse_quest_complete_payload(preview)
         return {
             "category": "quest_complete",
             "is_complication": False,
@@ -543,6 +612,9 @@ def parse_pokemeow_response(
             "details": {
                 "module": "quest",
                 "preview": preview,
+                "quest_name": parsed_comp.get("quest_name", ""),
+                "rewards": parsed_comp.get("rewards", ""),
+                "exp": parsed_comp.get("exp", ""),
             },
             "raw_text": preview,
         }
@@ -895,6 +967,25 @@ def inspect_and_record_pokemeow_message(
         details=parsed["details"],
         raw_text=parsed.get("raw_text", ""),
     )
+
+    if bot is not None:
+        if parsed["category"] == "quest_board":
+            if not hasattr(bot, "quest_data") or not isinstance(bot.quest_data, dict):
+                bot.quest_data = {}
+            bot.quest_data["next_quest"] = str(parsed["details"].get("next_quest", "") or "")
+            bot.quest_data["active_quests"] = list(parsed["details"].get("active_quests", []) or [])
+            bot.quest_data["last_updated_utc"] = _utc_now_iso()
+        elif parsed["category"] == "quest_complete":
+            if not hasattr(bot, "quest_data") or not isinstance(bot.quest_data, dict):
+                bot.quest_data = {}
+            bot.quest_data["last_completed"] = {
+                "quest": str(parsed["details"].get("quest_name", "") or ""),
+                "rewards": str(parsed["details"].get("rewards", "") or ""),
+                "exp": str(parsed["details"].get("exp", "") or ""),
+                "completed_at": _utc_now_iso(),
+            }
+            bot.quest_data["last_updated_utc"] = _utc_now_iso()
+
     return recorded
 
 

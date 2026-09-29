@@ -12,6 +12,7 @@ from modules.cloudflare_indicator import (
     is_cloudflare_1015_error,
     notify_cloudflare_in_channel,
 )
+from modules.captcha_gate import is_captcha_active
 
 if TYPE_CHECKING:
     from main import PokeGrinder
@@ -377,7 +378,7 @@ class CatchBot(commands.Cog):
         )
 
     async def _try_run_now(self, reason: str) -> bool:
-        if self.bot.pause_hunting or self.bot.pause_fishing:
+        if is_captcha_active(self.bot) or self.bot.pause_hunting or self.bot.pause_fishing:
             return False
 
         if self.catchbot_running:
@@ -389,6 +390,8 @@ class CatchBot(commands.Cog):
             elapsed_after_check = now - self.last_check_command_at
             if elapsed_after_check < self.min_post_check_to_run_seconds:
                 await asyncio.sleep(self.min_post_check_to_run_seconds - elapsed_after_check)
+                if is_captcha_active(self.bot) or self.bot.pause_hunting or self.bot.pause_fishing:
+                    return False
                 now = time.time()
 
         if now - self.last_run_attempt_at < self.min_run_attempt_interval_seconds:
@@ -397,6 +400,9 @@ class CatchBot(commands.Cog):
         channel = await self._get_channel_async()
         if channel is None:
             self.bot.catchbot_status = "No catchbot channel"
+            return False
+
+        if is_captcha_active(self.bot):
             return False
 
         try:
@@ -423,8 +429,14 @@ class CatchBot(commands.Cog):
             return False
 
     async def trigger_catchbot_check(self, source: str = "loop") -> bool:
+        if is_captcha_active(self.bot) or self.bot.pause_hunting or self.bot.pause_fishing:
+            return False
+
         channel = await self._get_channel_async()
         if channel is None:
+            return False
+
+        if is_captcha_active(self.bot):
             return False
 
         try:

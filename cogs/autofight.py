@@ -11,6 +11,7 @@ from modules.anti_detect_log import record_anti_detect_event
 from modules.autofight_log import record_autofight_event
 from modules.cloudflare_indicator import notify_cloudflare_in_channel
 from modules.pokeapi_cache import get_move_brief, get_pokemon_brief
+from modules.captcha_gate import is_captcha_active
 
 POKEMEOW_APP_ID = 664508672713424926
 
@@ -947,6 +948,9 @@ class AutoFight(commands.Cog):
         }
 
     async def _dispatch_initial_fight(self, channel, battle_mode: str = "") -> bool:
+        if is_captcha_active(self.bot, getattr(channel, "id", None)):
+            return False
+
         if self._cloudflare_guard_remaining() > 0:
             self._sync_cloudflare_guard_status()
             self._log_event(

@@ -8,6 +8,7 @@ from discord.ext import commands, tasks
 from discord import SlashCommand, UserCommand, MessageCommand, TextChannel, InvalidData
 
 from modules.runtime_file_log import info as runtime_info_log
+from modules.captcha_gate import is_captcha_active
 
 try:
     from discord import SubCommand
@@ -132,6 +133,9 @@ class Startup(commands.Cog):
         if channel is None:
             return False
 
+        if is_captcha_active(self.bot, getattr(channel, "id", None)):
+            return False
+
         try:
             await channel.send(text_command)
             print(f"[Startup] Fallback sent: {text_command}")
@@ -147,6 +151,9 @@ class Startup(commands.Cog):
         fallback_channel: TextChannel | None = None,
         fallback_text: str | None = None,
     ) -> bool:
+        if is_captcha_active(self.bot, getattr(fallback_channel, "id", None)):
+            return False
+
         command_map = command_map or {}
         command = command_map.get(command_name)
         if command is None:
@@ -364,7 +371,7 @@ class Startup(commands.Cog):
             if self.bot.limit:
                 return
 
-            if bool(getattr(self.bot, "hunting_captcha_active", False)) or self.bot.pause_hunting:
+            if is_captcha_active(self.bot, getattr(self.config, "hunting_channel_id", 0)) or self.bot.pause_hunting:
                 return
 
             if time() - self.bot.last_hunt < 20:
@@ -386,7 +393,7 @@ class Startup(commands.Cog):
     @tasks.loop(seconds=40)
     async def fishing_check(self) -> None:
         try:
-            if bool(getattr(self.bot, "fishing_captcha_active", False)) or self.bot.pause_fishing:
+            if is_captcha_active(self.bot, getattr(self.config, "fishing_channel_id", 0)) or self.bot.pause_fishing:
                 return
 
             if time() - self.bot.last_fish < 40:

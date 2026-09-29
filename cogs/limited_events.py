@@ -9,6 +9,8 @@ from typing import Any
 from discord import Message
 from discord.ext import commands, tasks
 
+from modules.captcha_gate import is_captcha_active
+
 POKEMEOW_APP_ID = 664508672713424926
 
 
@@ -265,6 +267,9 @@ class LimitedEvents(commands.Cog):
         timeout_seconds: float = 45.0,
     ) -> tuple[bool, str, str, str]:
         for attempt in range(2):
+            if is_captcha_active(self.bot):
+                return False, "", "", f"Aborted {command_text}: captcha is active"
+
             sent_at = time.time()
             try:
                 await channel.send(command_text)
@@ -295,6 +300,8 @@ class LimitedEvents(commands.Cog):
                 payload = self._extract_message_text(message)
                 return True, payload, str(getattr(message, "jump_url", "") or ""), ""
             except asyncio.TimeoutError:
+                if is_captcha_active(self.bot):
+                    return False, "", "", f"Aborted {command_text}: captcha became active during wait"
                 if attempt == 0:
                     await asyncio.sleep(1.0)
                     continue
@@ -316,7 +323,7 @@ class LimitedEvents(commands.Cog):
             self.bot.limited_events = self._empty_snapshot("Bot not ready")
             return False, "Bot not ready"
 
-        if bool(getattr(self.bot, "hunting_captcha_active", False)):
+        if is_captcha_active(self.bot):
             now = datetime.now(timezone.utc)
             self.bot.limited_events = {
                 **self._empty_snapshot("Skipped: captcha active"),
@@ -347,14 +354,26 @@ class LimitedEvents(commands.Cog):
         try:
             await asyncio.sleep(1.0)
             for key, command_text, keywords in requests:
+                if is_captcha_active(self.bot):
+                    print(f"[LimitedEvents] Captcha active, aborting command dispatch for {command_text}")
+                    summaries[key] = self._build_summary(command_text, "", False, error="Aborted: captcha active")
+                    break
                 ok, text, jump_url, error = await self._request_command_response(channel, command_text, keywords)
                 if ok:
                     ok_count += 1
                 summaries[key] = self._build_summary(command_text, text, ok, error=error, jump_url=jump_url)
                 await asyncio.sleep(1.2)
+                if is_captcha_active(self.bot):
+                    print("[LimitedEvents] Captcha became active during inter-command delay, aborting remaining requests")
+                    break
         finally:
-            self.bot.pause_hunting = was_hunt_paused
-            self.bot.pause_fishing = was_fish_paused
+            if is_captcha_active(self.bot):
+                # Safety lock: never unpause hunting/fishing while a captcha is active!
+                self.bot.pause_hunting = True
+                self.bot.pause_fishing = True
+            else:
+                self.bot.pause_hunting = was_hunt_paused
+                self.bot.pause_fishing = was_fish_paused
 
         now = datetime.now(timezone.utc)
         next_check = datetime.fromtimestamp(time.time() + self.poll_interval_seconds, timezone.utc)

@@ -17,13 +17,14 @@ from discord.ext.commands import Bot
 
 from cogs.fishing import Fishing
 from cogs.captcha import Captcha
-from cogs.hunting import Hunting
+from cogs.hunting import Hunting, safe_request_quest_info
 from cogs.egg import Egg
 from cogs.berry import BerryGarden
 from cogs.catchbot import CatchBot
 from cogs.autofight import AutoFight
 from cogs.limited_events import LimitedEvents
 from cogs.pokemeow_reader_cog import PokeMeowReaderCog
+from modules.captcha_gate import is_captcha_active
 from modules.logging import logger
 from modules.stats_store import get_stats_key, load_stats_for_key, persist_bot_stats, ensure_day_mode_window
 from cogs.startup import Startup, Config
@@ -486,6 +487,12 @@ async def start_bots(token: str) -> None:
         "events": {"ok": False, "headline": "", "event_end": "", "important_lines": [], "raw_preview": "", "error": "Not checked yet", "jump_url": ""},
         "unlocks": {"ok": False, "headline": "", "event_end": "", "important_lines": [], "raw_preview": "", "error": "Not checked yet", "jump_url": ""},
     }
+    bot.quest_data = {
+        "next_quest": "",
+        "active_quests": [],
+        "last_completed": {},
+        "last_updated_utc": "",
+    }
 
     bots.append(bot)
     await add_cog_compat(bot, Startup(bot))
@@ -890,6 +897,7 @@ def get_runtime_snapshot() -> dict:
                     "any_active": False,
                 },
                 "limited_events": dict(getattr(bot, "limited_events", {}) or {}),
+                "quests": dict(getattr(bot, "quest_data", {}) or {}),
                 "day": day_payload,
                 # Keep legacy key for backward compatibility with existing UI consumers.
                 "session": day_payload,
@@ -1208,6 +1216,18 @@ async def runtime_action(action: str, payload: dict | None = None) -> dict:
         if not ok:
             return {"ok": False, "error": message}
         return {"ok": True, "message": f"{message} ({username})"}
+
+    if action == "refresh_quests":
+        channel = getattr(bot, "hunting_channel", None) or getattr(bot, "fishing_channel", None)
+        if channel is None:
+            return {"ok": False, "error": "No hunting or fishing channel available to request quests."}
+        if is_captcha_active(bot, getattr(channel, "id", None)):
+            return {"ok": False, "error": "Cannot check quests: captcha is active."}
+        cmd_map = getattr(bot, "hunting_channel_commands", None) or getattr(bot, "fishing_channel_commands", None)
+        ok = await safe_request_quest_info(bot, channel, cmd_map, source="manual_dashboard")
+        if not ok:
+            return {"ok": False, "error": "Quest request was skipped (debounce/cooldown or captcha active)."}
+        return {"ok": True, "message": f"Quest info requested for {username}."}
 
     if action == "set_captcha_max_attempts":
         raw = payload.get("max_attempts")

@@ -15,6 +15,7 @@ const runtimeActions = [
   { key: "force_fight", label: "Force Fight", cls: "bg-slate-700 hover:bg-slate-600 text-slate-200" },
   { key: "force_fish", label: "Force Fish", cls: "bg-slate-700 hover:bg-slate-600 text-slate-200" },
   { key: "force_berry_check", label: "Force Berry", cls: "bg-slate-700 hover:bg-slate-600 text-slate-200" },
+  { key: "refresh_quests", label: "Check Quests", cls: "bg-slate-700 hover:bg-slate-600 text-slate-200" },
 ];
 
 function PokeBallIcon({ className = "" }) {
@@ -109,6 +110,17 @@ function WarningIcon({ className = "" }) {
       <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
       <line x1="12" y1="9" x2="12" y2="13" />
       <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  );
+}
+
+function QuestIcon({ className = "" }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+      <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+      <path d="M9 12h6" />
+      <path d="M9 16h6" />
     </svg>
   );
 }
@@ -377,6 +389,7 @@ export default function PokeGrinderDashboard() {
   const [pokemonFallbackBusy, setPokemonFallbackBusy] = useState(false);
   const [overviewSection, setOverviewSection] = useState("highlights");
   const [eventsFocusUser, setEventsFocusUser] = useState("");
+  const [questsFocusUser, setQuestsFocusUser] = useState("");
   const [complications, setComplications] = useState({
     total_complications: 0,
     flee_count: 0,
@@ -806,6 +819,46 @@ export default function PokeGrinderDashboard() {
   const focusedEventsRow = useMemo(
     () => limitedEventRows.find((row) => row.key === eventsFocusUser) || limitedEventRows[0] || null,
     [limitedEventRows, eventsFocusUser],
+  );
+
+  const questRows = useMemo(
+    () => scopedBots.map((bot, idx) => {
+      const quests = bot?.quests || {};
+      const activeQuests = Array.isArray(quests.active_quests) ? quests.active_quests : [];
+      const nextQuest = String(quests.next_quest || "").trim();
+      const lastCompleted = quests.last_completed || {};
+      const lastUpdatedUtc = String(quests.last_updated_utc || "");
+
+      return {
+        key: bot?.id || `${bot?.username || "bot"}-${idx}`,
+        target: bot?.id || bot?.username || "",
+        username: bot?.username || "Unknown",
+        nextQuest,
+        activeQuests,
+        lastCompleted,
+        lastUpdatedUtc,
+      };
+    }),
+    [scopedBots],
+  );
+
+  useEffect(() => {
+    if (questRows.length === 0) {
+      if (questsFocusUser) {
+        setQuestsFocusUser("");
+      }
+      return;
+    }
+
+    const exists = questRows.some((row) => row.key === questsFocusUser);
+    if (!questsFocusUser || !exists) {
+      setQuestsFocusUser(questRows[0].key);
+    }
+  }, [questRows, questsFocusUser]);
+
+  const focusedQuestsRow = useMemo(
+    () => questRows.find((row) => row.key === questsFocusUser) || questRows[0] || null,
+    [questRows, questsFocusUser],
   );
 
   const globalDirectives = useMemo(() => {
@@ -2239,6 +2292,7 @@ export default function PokeGrinderDashboard() {
     { key: "highlights", label: "Highlights" },
     { key: "complications", label: "Complications" },
     { key: "events", label: "Bonuses" },
+    { key: "quests", label: "Quests" },
     { key: "stats", label: "Totals" },
     { key: "snapshot", label: "Bots" },
     { key: "rarity", label: "Rarity" },
@@ -2595,6 +2649,195 @@ export default function PokeGrinderDashboard() {
                           </div>
                         </div>
                       </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            )}
+
+            {overviewSection === "quests" && (
+            <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-md overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-800 flex flex-wrap justify-between gap-2 items-center">
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                    <QuestIcon className="w-4 h-4 text-[#FDA4AF]" />
+                    PokéMeow Daily Quests
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1">Live quest objectives, real-time progress tracking, and automated rewards.</p>
+                </div>
+                <button
+                  onClick={() => runAction("refresh_quests")}
+                  disabled={!runtimeAvailable || busyAction !== ""}
+                  className="bg-gradient-to-r from-[#E11D48] to-[#BE123C] text-white border border-[#E11D48]/35 px-3 py-1.5 rounded-lg transition-colors text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                >
+                  <QuestIcon className="w-3.5 h-3.5" />
+                  Check Quests
+                </button>
+              </div>
+
+              <div className="p-4 space-y-4">
+                {questRows.length === 0 && (
+                  <div className="text-sm text-slate-500">No active bots in this scope.</div>
+                )}
+
+                {questRows.length > 0 && focusedQuestsRow && (
+                  <div className="flex flex-col xl:flex-row gap-3">
+                    <div className="w-full xl:w-64 shrink-0 space-y-2">
+                      {questRows.map((row) => {
+                        const selected = row.key === focusedQuestsRow.key;
+                        const activeCount = row.activeQuests.length;
+                        return (
+                          <button
+                            key={`quest-op-${row.key}`}
+                            onClick={() => setQuestsFocusUser(row.key)}
+                            className={`w-full rounded-xl border px-3 py-2.5 text-left transition-colors ${selected ? "bg-[#180508] border-[#E11D48]/50 shadow-[inset_3px_0_0_#E11D48]" : "bg-[#0A0102] border-[#380D16] hover:bg-[#110305]"}`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-semibold text-slate-100 truncate">{row.username}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">
+                                {activeCount} active
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-[#9F1239] uppercase tracking-wider mt-1">
+                              {row.lastUpdatedUtc ? formatRelativeTime(row.lastUpdatedUtc) : "Not synced"}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex-1 rounded-2xl border border-[#380D16] bg-[#0A0102] p-5 space-y-5 min-h-[420px]">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#380D16] pb-3">
+                        <div>
+                          <div className="text-base font-bold text-slate-100 flex items-center gap-2">
+                            <span>{focusedQuestsRow.username}</span>
+                            <span className="text-xs font-normal text-slate-400">
+                              (Quests sync automatically after grind cycles or on request)
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-400 mt-0.5">
+                            Last synced: {focusedQuestsRow.lastUpdatedUtc ? formatRelativeTime(focusedQuestsRow.lastUpdatedUtc) : "Never"}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => runBotAction(focusedQuestsRow.target, "refresh_quests")}
+                          disabled={!runtimeAvailable || busyAction !== ""}
+                          className="px-2.5 py-1 rounded text-[11px] font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          Sync Operator Quests
+                        </button>
+                      </div>
+
+                      {/* Next Quest Queue Banner */}
+                      <div className="rounded-xl border border-[#4C0519]/70 bg-[#140205] p-3.5 flex items-start gap-3">
+                        <div className="p-2 rounded-lg bg-[#E11D48]/15 text-[#FDA4AF] border border-[#E11D48]/30 shrink-0 mt-0.5">
+                          <QuestIcon className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[10px] font-bold text-[#FDA4AF] uppercase tracking-wider">Next Quest in Queue</div>
+                          <div className="text-sm font-semibold text-slate-100 mt-0.5">
+                            {focusedQuestsRow.nextQuest || "No pending queue info recorded"}
+                          </div>
+                          <div className="text-[11px] text-slate-400 mt-1">
+                            PokéMeow automatically fills open slots when any active quest is finished. Rewards are credited immediately upon completion.
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Active Quests Cards */}
+                      <div>
+                        <div className="text-[11px] font-bold text-[#FDA4AF] uppercase tracking-wider mb-2.5">
+                          Active Quests ({focusedQuestsRow.activeQuests.length})
+                        </div>
+                        {focusedQuestsRow.activeQuests.length === 0 ? (
+                          <div className="rounded-xl border border-dashed border-slate-800 p-6 text-center text-sm text-slate-500">
+                            No active quests tracked yet for this account. Click "Sync Operator Quests" or allow grinding to run.
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {focusedQuestsRow.activeQuests.map((quest, qIdx) => {
+                              const cur = Number(quest.progress_current || 0);
+                              const total = Number(quest.progress_total || 0);
+                              const pct = total > 0 ? Math.min(100, Math.round((cur / total) * 100)) : 0;
+                              const isComplete = total > 0 && cur >= total;
+
+                              return (
+                                <div
+                                  key={`active-quest-${quest.id || qIdx}`}
+                                  className="rounded-xl border border-[#380D16] bg-[#110305] p-4 flex flex-col justify-between space-y-3"
+                                >
+                                  <div>
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#E11D48]/20 text-[#FDA4AF] border border-[#E11D48]/35">
+                                        Quest #{quest.id || qIdx + 1}
+                                      </span>
+                                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${isComplete ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" : "bg-sky-500/20 text-sky-300 border-sky-500/40"}`}>
+                                        {isComplete ? "Completed" : "In Progress"}
+                                      </span>
+                                    </div>
+                                    <h4 className="text-sm font-semibold text-slate-100 mt-2 leading-snug">
+                                      {quest.title || "Untitled Quest"}
+                                    </h4>
+                                    {quest.rewards && (
+                                      <p className="text-xs text-amber-300/90 mt-1 flex items-center gap-1">
+                                        <span>🎁</span>
+                                        <span>{quest.rewards}</span>
+                                      </p>
+                                    )}
+                                  </div>
+
+                                  <div className="space-y-1.5 pt-2 border-t border-[#2A060E]">
+                                    <div className="flex justify-between items-center text-xs">
+                                      <span className="text-slate-400 font-mono text-[11px]">Progress</span>
+                                      <span className="font-semibold text-slate-200 font-mono text-[11px]">
+                                        {quest.progress_str || `${cur}/${total}`} ({pct}%)
+                                      </span>
+                                    </div>
+                                    <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
+                                      <div
+                                        className={`h-full rounded-full transition-all duration-300 ${isComplete ? "bg-emerald-500" : "bg-gradient-to-r from-[#E11D48] to-[#F43F5E]"}`}
+                                        style={{ width: `${pct}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Recently Completed Quest */}
+                      {focusedQuestsRow.lastCompleted && focusedQuestsRow.lastCompleted.quest && (
+                        <div className="rounded-xl border border-emerald-950/60 bg-emerald-950/15 p-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                              Recently Completed Quest
+                            </span>
+                            {focusedQuestsRow.lastCompleted.completed_at && (
+                              <span className="text-[10px] text-slate-400">
+                                {formatRelativeTime(focusedQuestsRow.lastCompleted.completed_at)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-sm font-semibold text-slate-100">
+                            {focusedQuestsRow.lastCompleted.quest}
+                          </div>
+                          <div className="flex flex-wrap gap-2 text-xs">
+                            {focusedQuestsRow.lastCompleted.rewards && (
+                              <span className="px-2 py-0.5 rounded bg-emerald-900/30 text-emerald-300 border border-emerald-800/40">
+                                Rewards: {focusedQuestsRow.lastCompleted.rewards}
+                              </span>
+                            )}
+                            {focusedQuestsRow.lastCompleted.exp && (
+                              <span className="px-2 py-0.5 rounded bg-emerald-900/30 text-emerald-300 border border-emerald-800/40">
+                                Exp: {focusedQuestsRow.lastCompleted.exp}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

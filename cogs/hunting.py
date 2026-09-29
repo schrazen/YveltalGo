@@ -1,7 +1,7 @@
 import asyncio
 import re
 from time import time
-from typing import Dict, TypeAlias
+from typing import Dict, TypeAlias, Any
 from random import randint, choice
 
 from discord import (
@@ -26,6 +26,7 @@ from modules.cloudflare_indicator import is_cloudflare_1015_error, notify_cloudf
 from modules.rare_catch_log import record_rare_catch_event
 from modules.retrieved_item_log import record_retrieved_item_event
 from modules.pokemeow_reader import inspect_and_record_pokemeow_message
+from modules.captcha_gate import is_captcha_active
 
 POKEMEOW_APP_ID = 664508672713424926
 
@@ -205,24 +206,91 @@ def _is_max_speed_enabled(config: Config) -> bool:
 async def auto_buy(
     bot: commands.Bot,
     config: Config,
-    command_map: Dict[str, object],
+    command_map: Dict[str, object] | None,
     message: Message,
 ) -> None:
+    ch_id = getattr(getattr(message, "channel", None), "id", None)
+    if is_captcha_active(bot, ch_id):
+        return
+
+    footer_text = ""
+    try:
+        if message.embeds and message.embeds[0].footer:
+            footer_text = str(message.embeds[0].footer.text or "")
+    except Exception:
+        pass
+
     to_buy = [
         auto_buy_sub_strings[string]
         for string in list(auto_buy_sub_strings.keys())
-        if string in message.embeds[0].footer.text
+        if string in footer_text
     ]
 
-    if to_buy and config.auto_buy[to_buy[0]] != 0 and not bot.auto_buy_queued:
+    if to_buy and config.auto_buy.get(to_buy[0], 0) != 0 and not getattr(bot, "auto_buy_queued", False):
         bot.auto_buy_queued = True
-        if not _is_max_speed_enabled(config):
-            await asyncio.sleep(2 + randint(0, config.suspicion_avoidance) / 1000)
-        task = asyncio.create_task(
-            command_map["shop buy"](item=to_buy[0], amount=config.auto_buy[to_buy[0]])
-        )
-        bot.auto_buy_queued = False
-        await task
+        try:
+            if not _is_max_speed_enabled(config):
+                await asyncio.sleep(2 + randint(0, config.suspicion_avoidance) / 1000)
+
+            if is_captcha_active(bot, ch_id):
+                return
+
+            shop_buy = (command_map or {}).get("shop buy") if isinstance(command_map, dict) else None
+            amount = config.auto_buy[to_buy[0]]
+            if callable(shop_buy):
+                await shop_buy(item=to_buy[0], amount=amount)
+            elif getattr(message, "channel", None) is not None:
+                await message.channel.send(f";b {to_buy[0]} {amount}")
+        except Exception as exc:
+            print(f"[AutoBuy] Failed purchasing {to_buy[0]}: {exc}")
+        finally:
+            bot.auto_buy_queued = False
+
+
+async def safe_request_quest_info(
+    bot: commands.Bot,
+    channel: Any,
+    command_map: Dict[str, object] | None,
+    source: str = "hunting",
+) -> bool:
+    if channel is None:
+        return False
+
+    channel_id = getattr(channel, "id", 0)
+    if is_captcha_active(bot, channel_id):
+        return False
+
+    now = time()
+    last_req = float(getattr(bot, "_last_quest_info_request_at", 0.0) or 0.0)
+    # Debounce: minimum 25 seconds between quest info dispatches to prevent spam
+    if (now - last_req) < 25.0:
+        return False
+    bot._last_quest_info_request_at = now
+
+    suspicion = getattr(getattr(bot, "config", None), "suspicion_avoidance", 250)
+    delay = 1.5 + (randint(0, suspicion) / 1000.0)
+    await asyncio.sleep(delay)
+
+    if is_captcha_active(bot, channel_id):
+        return False
+
+    cmd = (command_map or {}).get("quest info") if isinstance(command_map, dict) else None
+    if callable(cmd):
+        try:
+            await cmd()
+            return True
+        except Exception as exc:
+            print(f"[Quest] Slash command '/quest info' failed ({exc}), falling back to ';q'...")
+
+    if is_captcha_active(bot, channel_id):
+        return False
+
+    try:
+        await channel.send(";q")
+        return True
+    except Exception as exc:
+        print(f"[Quest] Text fallback ';q' failed ({exc}).")
+        return False
 
 
 class Hunting(commands.Cog):
@@ -516,7 +584,7 @@ class Hunting(commands.Cog):
         Dispatch pokemon hunt only if no captcha is currently active.
         This prevents dispatch during captcha windows even if the flag changes during sleep phases.
         """
-        if getattr(self.bot, "hunting_captcha_active", False) or self.bot.pause_hunting or self.bot.limit:
+        if is_captcha_active(self.bot, self.config.hunting_channel_id) or self.bot.pause_hunting or self.bot.limit:
             return
         try:
             channel = self.bot.get_channel(self.config.hunting_channel_id)
@@ -540,7 +608,7 @@ class Hunting(commands.Cog):
             await self._handle_daily_limit()
             return
 
-        if getattr(self.bot, "hunting_captcha_active", False) or self.bot.pause_hunting:
+        if is_captcha_active(self.bot, self.config.hunting_channel_id) or self.bot.pause_hunting:
             return
 
         if not message.interaction:
@@ -720,7 +788,7 @@ class Hunting(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: Message, after: Message) -> None:
-        if getattr(self.bot, "hunting_captcha_active", False) or self.bot.pause_hunting:
+        if is_captcha_active(self.bot, self.config.hunting_channel_id) or self.bot.pause_hunting:
             return
 
         if not after.interaction:
@@ -829,11 +897,12 @@ class Hunting(commands.Cog):
                         2 + randint(0, self.config.suspicion_avoidance) / 1000
                     )
 
-                tasks.append(
-                    asyncio.create_task(
-                        self.bot.hunting_channel_commands["release duplicates"]()
-                    )
-                )
+                if not is_captcha_active(self.bot, self.config.hunting_channel_id):
+                    rel_cmd = (self.bot.hunting_channel_commands or {}).get("release duplicates") if isinstance(self.bot.hunting_channel_commands, dict) else None
+                    if callable(rel_cmd):
+                        tasks.append(asyncio.create_task(rel_cmd()))
+                    elif after.channel is not None:
+                        tasks.append(asyncio.create_task(after.channel.send(";release duplicates")))
 
         elif any(marker in (after.embeds[0].description or "").lower() for marker in ("ran away", "got away", "fled", "broke free")):
             rarity = resolve_hunting_rarity(self.config, before)
@@ -876,10 +945,15 @@ class Hunting(commands.Cog):
             )
 
         if "Your next Quest is now ready!" in before.content:
-            if not self._max_speed():
-                await asyncio.sleep(1 + randint(0, self.config.suspicion_avoidance) / 1000)
             tasks.append(
-                asyncio.create_task(self.bot.hunting_channel_commands["quest info"]())
+                asyncio.create_task(
+                    safe_request_quest_info(
+                        self.bot,
+                        after.channel,
+                        self.bot.hunting_channel_commands,
+                        source="hunting",
+                    )
+                )
             )
 
         tasks.append(
@@ -917,7 +991,7 @@ class Hunting(commands.Cog):
             )
 
         if (
-            not getattr(self.bot, "hunting_captcha_active", False)
+            not is_captcha_active(self.bot, self.config.hunting_channel_id)
             and not self.bot.pause_hunting
             and not self.bot.limit
         ):

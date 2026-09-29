@@ -8,12 +8,13 @@ from pathlib import Path
 from discord import Message, InvalidData
 from discord.ext import commands
 
-from cogs.hunting import auto_buy
+from cogs.hunting import auto_buy, safe_request_quest_info
 from cogs.startup import Config
 from modules.stats_store import persist_bot_stats, ensure_day_mode_window
 from modules.anti_detect_log import record_anti_detect_event
 from modules.cloudflare_indicator import is_cloudflare_1015_error, notify_cloudflare_in_channel
 from modules.pokemeow_reader import inspect_and_record_pokemeow_message
+from modules.captcha_gate import is_captcha_active
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 _fishes_file = BASE_DIR / "data" / "fishes.json"
@@ -270,13 +271,13 @@ class Fishing(commands.Cog):
         Dispatch fish spawn only if no captcha is currently active.
         This prevents dispatch during captcha windows even if the flag changes during sleep phases.
         """
-        if getattr(self.bot, "fishing_captcha_active", False) or self.bot.pause_fishing:
+        if is_captcha_active(self.bot, self.config.fishing_channel_id) or self.bot.pause_fishing:
             return
         await self._safe_fish_spawn()
 
     @commands.Cog.listener()
     async def on_message(self, message: Message) -> None:
-        if getattr(self.bot, "fishing_captcha_active", False) or self.bot.pause_fishing:
+        if is_captcha_active(self.bot, self.config.fishing_channel_id) or self.bot.pause_fishing:
             return
 
         if not message.interaction:
@@ -360,7 +361,7 @@ class Fishing(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: Message, after: Message) -> None:
-        if getattr(self.bot, "fishing_captcha_active", False) or self.bot.pause_fishing:
+        if is_captcha_active(self.bot, self.config.fishing_channel_id) or self.bot.pause_fishing:
             return
 
         if not after.interaction:
@@ -674,11 +675,12 @@ class Fishing(commands.Cog):
                             2 + randint(0, self.config.suspicion_avoidance) / 1000
                         )
 
-                    tasks.append(
-                        asyncio.create_task(
-                            self.bot.fishing_channel_commands["release duplicates"]()
-                        )
-                    )
+                    if not is_captcha_active(self.bot, self.config.fishing_channel_id):
+                        rel_cmd = (self.bot.fishing_channel_commands or {}).get("release duplicates") if isinstance(self.bot.fishing_channel_commands, dict) else None
+                        if callable(rel_cmd):
+                            tasks.append(asyncio.create_task(rel_cmd()))
+                        elif after.channel is not None:
+                            tasks.append(asyncio.create_task(after.channel.send(";release duplicates")))
 
             elif any(marker in after_description.lower() for marker in ("got away", "ran away", "broke free", "fled")):
                 rarity = resolve_fishing_rarity(before_description)
@@ -712,14 +714,14 @@ class Fishing(commands.Cog):
                 )
 
             if "Your next Quest is now ready!" in before.content:
-                if not self._max_speed():
-                    await asyncio.sleep(
-                        1 + randint(0, self.config.suspicion_avoidance) / 1000
-                    )
-
                 tasks.append(
                     asyncio.create_task(
-                        self.bot.fishing_channel_commands["quest info"]()
+                        safe_request_quest_info(
+                            self.bot,
+                            after.channel,
+                            self.bot.fishing_channel_commands,
+                            source="fishing",
+                        )
                     )
                 )
 

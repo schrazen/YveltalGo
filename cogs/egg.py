@@ -11,6 +11,7 @@ from modules.cloudflare_indicator import (
     is_cloudflare_1015_error,
     notify_cloudflare_in_channel,
 )
+from modules.captcha_gate import is_captcha_active
 
 POKEMEOW_APP_ID = 664508672713424926
 
@@ -59,6 +60,9 @@ class Egg(commands.Cog):
         return None
 
     async def safe_run_command(self, channel_id: int, command_map, command_name: str) -> bool:
+        if is_captcha_active(self.bot, channel_id):
+            return False
+
         command = command_map.get(command_name) if command_map else None
         if command is None:
             print(f"Egg warning: command '{command_name}' not found.")
@@ -77,12 +81,18 @@ class Egg(commands.Cog):
             return False
 
     async def _send_text_fallback(self, channel_id: int, text_command: str) -> bool:
+        if is_captcha_active(self.bot, channel_id):
+            return False
+
         channel = self.bot.get_channel(channel_id)
         if channel is None:
             try:
                 channel = await self.bot.fetch_channel(channel_id)
             except Exception:
                 return False
+
+        if is_captcha_active(self.bot, channel_id):
+            return False
 
         try:
             await channel.send(text_command)
@@ -101,6 +111,8 @@ class Egg(commands.Cog):
         attempts: int = 3,
         base_delay: float = 1.0,
     ) -> bool:
+        if is_captcha_active(self.bot, channel_id):
+            return False
         attempts = max(1, int(attempts))
         fallback_text = f";{command_name}"
 
@@ -191,7 +203,7 @@ class Egg(commands.Cog):
         if not self.config.egg_hatching:
             return
 
-        if self.bot.captcha_active:
+        if is_captcha_active(self.bot, message.channel.id):
             return
 
         if not self.in_grinding_channel(message.channel.id):
