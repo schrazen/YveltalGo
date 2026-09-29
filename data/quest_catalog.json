@@ -49,8 +49,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "master_challenger",
-    "times_seen": 25,
-    "last_seen_utc": "2026-09-29T18:35:32.560075+00:00",
+    "times_seen": 32,
+    "last_seen_utc": "2026-09-29T18:43:42.408384+00:00",
     "sample_titles": [
       "Defeat a Master Challenger!",
       "Defeat a Master Challenger"
@@ -100,10 +100,11 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "npc 210",
-    "times_seen": 23,
-    "last_seen_utc": "2026-09-29T18:35:32.548468+00:00",
+    "times_seen": 29,
+    "last_seen_utc": "2026-09-29T18:49:11.770350+00:00",
     "sample_titles": [
-      "Defeat 2 Challengers in battle"
+      "Defeat 2 Challengers in battle",
+      "Defeat 3 Boss Challengers!"
     ],
     "is_custom": false
   },
@@ -218,8 +219,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 7,
-    "last_seen_utc": "2026-09-29T18:35:32.567602+00:00",
+    "times_seen": 14,
+    "last_seen_utc": "2026-09-29T18:43:42.409384+00:00",
     "sample_titles": [
       "Fish & Catch 25 Pokemon with a Pokelure active!",
       "Fish & Catch 25 Pokemon with a Pokelure active > 💰 R"
@@ -237,9 +238,11 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 0,
-    "last_seen_utc": "",
-    "sample_titles": [],
+    "times_seen": 2,
+    "last_seen_utc": "2026-09-29T18:43:58.828666+00:00",
+    "sample_titles": [
+      "<:dexcaught:667082939632189451> **Catch 10 <:Common:667125159387463697> Common Pokemon**"
+    ],
     "is_custom": false
   },
   {
@@ -335,8 +338,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 34,
-    "last_seen_utc": "2026-09-29T18:35:32.543451+00:00",
+    "times_seen": 47,
+    "last_seen_utc": "2026-09-29T18:49:11.766276+00:00",
     "sample_titles": [
       "Catch 20 Water-type Pokemon",
       "Catch 20 Grass Type Pokemo",
@@ -536,6 +539,42 @@
     "last_seen_utc": "2026-09-29T18:07:49.240978+00:00",
     "sample_titles": [
       "**receive 1 🍭 lollipop from another player**"
+    ],
+    "is_custom": false
+  },
+  {
+    "id": "auto_defeat_3_boss_ch_1790707451",
+    "title": "Defeat 3 Boss Ch",
+    "pattern": "Defeat\\ 3\\ Boss\\ Ch",
+    "category": "wild_catch",
+    "description": "Auto-discovered PokéMeow quest: 'Defeat 3 Boss Ch'",
+    "doable_auto": true,
+    "is_impossible": false,
+    "action": "auto_complete",
+    "default_action": "auto_complete",
+    "battle_mode": null,
+    "times_seen": 6,
+    "last_seen_utc": "2026-09-29T18:49:11.768251+00:00",
+    "sample_titles": [
+      "Defeat 3 Boss Ch"
+    ],
+    "is_custom": false
+  },
+  {
+    "id": "auto_receive_1_gingerbread_cookie_9_1790707769",
+    "title": "**receive 1 🧁 <:gingerbread_cookie:921832873751896157> or <:candy_cane:921831334731731004> from another player**",
+    "pattern": "\\*\\*receive\\ 1\\ 🧁\\ <:gingerbread_cookie:921832873751896157>\\ or\\ <:candy_cane:921831334731731004>\\ from\\ another\\ player\\*\\*",
+    "category": "wild_catch",
+    "description": "Auto-discovered PokéMeow quest: '**receive 1 🧁 <:gingerbread_cookie:921832873751896157> or <:candy_cane:921831334731731004> from another player**'",
+    "doable_auto": true,
+    "is_impossible": false,
+    "action": "auto_complete",
+    "default_action": "auto_complete",
+    "battle_mode": null,
+    "times_seen": 2,
+    "last_seen_utc": "2026-09-29T18:49:29.748132+00:00",
+    "sample_titles": [
+      "**receive 1 🧁 <:gingerbread_cookie:921832873751896157> or <:candy_cane:921831334731731004> from another player**"
     ],
     "is_custom": false
   }

@@ -12,7 +12,7 @@ from discord.ext import commands, tasks
 
 from modules.captcha_gate import is_captcha_active, is_in_battle
 from modules.challenge_manager import find_eligible_npc_for_quest, parse_challenges_text
-from modules.pokemeow_reader import parse_quest_board_payload, _utc_now_iso
+from modules.pokemeow_reader import collect_message_text, parse_quest_board_payload, _utc_now_iso
 from modules.quest_catalog import quest_catalog
 from modules.runtime_file_log import info as runtime_info_log
 
@@ -40,6 +40,7 @@ class QuestManager(commands.Cog):
         self._last_scroll_buy_at: float = 0.0
         self._syncing_challenges: bool = False
         self._last_challenge_sync_at: float = 0.0
+        self._clicked_challenge_messages: dict[int, float] = {}
 
         if not hasattr(self.bot, "quest_data") or not isinstance(self.bot.quest_data, dict):
             self.bot.quest_data = {
@@ -205,6 +206,18 @@ class QuestManager(commands.Cog):
             return False
 
         now = time.time()
+        last_fish = float(getattr(self.bot, "last_fish", 0.0) or 0.0)
+        time_since_fish = now - last_fish
+        if last_fish > 0 and time_since_fish < 26.0:
+            remaining = max(1.0, 26.0 - time_since_fish)
+            runtime_info_log(
+                f"[QuestManager] Cannot reset slot #{slot} immediately: last fish was {round(time_since_fish, 1)}s ago (post-/fish restriction). "
+                f"Pausing fishing and scheduling reset in {round(remaining + 2.0, 1)}s..."
+            )
+            self.bot.pause_fishing = True
+            asyncio.create_task(self._delayed_eval_quests(remaining + 2.0, resume_fishing=True))
+            return False
+
         last_reset = self._last_reset_per_slot.get(slot, 0.0)
         if (now - last_reset) < 45.0:
             return False
@@ -264,11 +277,17 @@ class QuestManager(commands.Cog):
             from cogs.hunting import safe_request_quest_info
             await safe_request_quest_info(self.bot, channel, cmd_map, source="quest_manager_sync")
 
-    async def _delayed_eval_quests(self, delay_seconds: float) -> None:
-        """Wait delay_seconds and re-evaluate quests."""
-        await asyncio.sleep(delay_seconds)
-        if not is_captcha_active(self.bot):
-            await self.evaluate_and_process_quests(source="post_cooldown_eval")
+    async def _delayed_eval_quests(self, delay_seconds: float, resume_fishing: bool = False) -> None:
+        """Wait delay_seconds and re-evaluate quests, resuming fishing afterwards if requested."""
+        try:
+            await asyncio.sleep(delay_seconds)
+            if not is_captcha_active(self.bot):
+                await self.evaluate_and_process_quests(source="post_cooldown_eval")
+        finally:
+            if resume_fishing:
+                await asyncio.sleep(4.0)
+                self.bot.pause_fishing = False
+                runtime_info_log("[QuestManager] Resumed fishing after quest reset window.")
 
     async def evaluate_and_process_quests(self, source: str = "periodic") -> dict[str, Any]:
         """Core decision engine:
@@ -423,11 +442,8 @@ class QuestManager(commands.Cog):
         if getattr(getattr(message, "author", None), "id", 0) != POKEMEOW_APP_ID:
             return
 
-        text = str(message.content or "").lower()
-        embed_desc = ""
-        for em in getattr(message, "embeds", []) or []:
-            embed_desc += " " + str(getattr(em, "description", "") or "").lower()
-        combined = (text + " " + embed_desc).lower()
+        haystack = collect_message_text(message)
+        combined = haystack.lower()
 
         # 0. Quest Board detection & parsing directly from message
         if (
@@ -435,8 +451,7 @@ class QuestManager(commands.Cog):
             or "quest #1:" in combined
             or ("your next quest is" in combined and "quest" in combined)
         ):
-            full_text = str(message.content or "") + " " + embed_desc
-            board_payload = parse_quest_board_payload(full_text)
+            board_payload = parse_quest_board_payload(haystack)
             if not hasattr(self.bot, "quest_data") or not isinstance(self.bot.quest_data, dict):
                 self.bot.quest_data = {}
             if board_payload.get("active_quests"):
@@ -469,10 +484,14 @@ class QuestManager(commands.Cog):
         if "before resetting a quest" in combined:
             m = re.search(r"please wait (\d+)\s*seconds? before resetting a quest", combined)
             wait_sec = int(m.group(1)) if m else 15
-            runtime_info_log(f"[QuestManager] Reset cooldown active: must wait {wait_sec}s. Resetting internal slot timer.")
+            runtime_info_log(
+                f"[QuestManager] Reset cooldown active: must wait {wait_sec}s (post-/fish restriction). "
+                f"Pausing fishing temporarily to allow reset window to clear..."
+            )
+            self.bot.pause_fishing = True
             for slot_key in list(self._last_reset_per_slot.keys()):
                 self._last_reset_per_slot[slot_key] = 0.0
-            asyncio.create_task(self._delayed_eval_quests(wait_sec + 2.0))
+            asyncio.create_task(self._delayed_eval_quests(wait_sec + 2.5, resume_fishing=True))
 
         # 2. Successful Quest Reset confirmation
         if (
@@ -481,6 +500,7 @@ class QuestManager(commands.Cog):
             or "reset your quest" in combined
         ):
             runtime_info_log("[QuestManager] Quest successfully reset/deleted! Refreshing quest info...")
+            self.bot.pause_fishing = False
             asyncio.create_task(self._delayed_sync_quest_info(2.5))
 
         # 3. Next Quest Ready notification
@@ -490,7 +510,7 @@ class QuestManager(commands.Cog):
 
         # 4. Quest Completed notification
         if "completed the quest" in combined:
-            m = re.search(r"completed the quest\s+(.+?)\s+and received:", (message.content or "") + " " + embed_desc, re.IGNORECASE)
+            m = re.search(r"completed the quest\s+(.+?)\s+and received:", haystack, re.IGNORECASE)
             if m:
                 q_name = m.group(1).strip()
                 if q_name:
@@ -506,30 +526,44 @@ class QuestManager(commands.Cog):
                 "available battling challenges",
                 "challenges in pokemeow",
                 "basic challenges have no requirements",
+                "gyms, elite four, champions",
+                "power station",
+                "meowrogue",
+                "mega chambers",
+                "battle frontier",
+                "unown ruins",
             )
         )
         if is_challenge_menu:
-            # Look for "Battle invitations" button
-            for row in getattr(message, "components", []) or []:
-                for btn in getattr(row, "children", []) or []:
-                    lbl = str(getattr(btn, "label", "") or "").lower()
-                    cid = str(getattr(btn, "custom_id", "") or "").lower()
-                    emoji_str = str(getattr(btn, "emoji", "") or "").lower()
-                    if (
-                        "invitation" in lbl
-                        or "invitation" in cid
-                        or "✉" in emoji_str
-                        or "📩" in emoji_str
-                        or "mail" in emoji_str
-                        or "envelope" in emoji_str
-                    ):
-                        if not bool(getattr(btn, "disabled", False)):
-                            try:
-                                runtime_info_log("[QuestManager] Clicking 'Battle invitations' button on challenges message...")
-                                await btn.click()
-                            except Exception as exc:
-                                logger.debug(f"[QuestManager] Error clicking invitations button: {exc}")
+            msg_id = int(getattr(message, "id", 0) or 0)
+            now = time.time()
+            last_clicked = self._clicked_challenge_messages.get(msg_id, 0.0)
+            if (now - last_clicked) > 8.0:
+                clicked = False
+                for row in getattr(message, "components", []) or []:
+                    if clicked:
                         break
+                    for btn in getattr(row, "children", []) or []:
+                        lbl = str(getattr(btn, "label", "") or "").lower()
+                        cid = str(getattr(btn, "custom_id", "") or "").lower()
+                        emoji_str = str(getattr(btn, "emoji", "") or "").lower()
+                        if (
+                            "invitation" in lbl
+                            or "invitation" in cid
+                            or "✉" in emoji_str
+                            or "📩" in emoji_str
+                            or "mail" in emoji_str
+                            or "envelope" in emoji_str
+                        ):
+                            if not bool(getattr(btn, "disabled", False)):
+                                self._clicked_challenge_messages[msg_id] = now
+                                clicked = True
+                                runtime_info_log("[QuestManager] Clicking 'Battle invitations' button on challenges message...")
+                                try:
+                                    await btn.click()
+                                except Exception as exc:
+                                    logger.debug(f"[QuestManager] Error clicking invitations button: {exc}")
+                                break
 
         # 6. Parse challenge invitations or list
         if any(
@@ -540,15 +574,12 @@ class QuestManager(commands.Cog):
                 "no battle invitations",
                 "you do not have any battle invitations",
                 "you have not received an invite",
+                "basic challenges have no requirements",
+                "basic challenges",
+                "master challenges",
             )
         ):
-            full_text = str(message.content or "")
-            for em in getattr(message, "embeds", []) or []:
-                full_text += "\n" + str(getattr(em, "title", "") or "")
-                full_text += "\n" + str(getattr(em, "description", "") or "")
-                for fld in getattr(em, "fields", []) or []:
-                    full_text += f"\n{getattr(fld, 'name', '')}: {getattr(fld, 'value', '')}"
-            parsed = parse_challenges_text(full_text)
+            parsed = parse_challenges_text(haystack)
             existing = getattr(self.bot, "challenge_data", {}) or {}
             if not parsed.get("basic") and existing.get("basic"):
                 parsed["basic"] = existing["basic"]
@@ -563,7 +594,8 @@ class QuestManager(commands.Cog):
             inv_count = len(parsed.get("invitations", []))
             has_no_inv = parsed.get("has_no_invites", False)
             runtime_info_log(
-                f"[QuestManager] Synced challenge invitations: {inv_count} active invitation(s) (no_invites={has_no_inv})."
+                f"[QuestManager] Synced challenge data: {inv_count} active invitation(s), "
+                f"{len(parsed.get('basic', []))} basic, {len(parsed.get('master', []))} master (no_invites={has_no_inv})."
             )
             self._syncing_challenges = False
 

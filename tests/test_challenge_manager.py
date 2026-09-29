@@ -133,9 +133,101 @@ def test_quest_manager_integration():
     print("test_quest_manager_integration: PASSED")
 
 
+def test_challenge_menu_recognition_and_button_click():
+    import asyncio
+
+    class DummyButton:
+        def __init__(self, label: str, custom_id: str, emoji: str = ""):
+            self.label = label
+            self.custom_id = custom_id
+            self.emoji = emoji
+            self.disabled = False
+            self.clicked = False
+
+        async def click(self):
+            self.clicked = True
+
+    class DummyRow:
+        def __init__(self, children):
+            self.children = children
+
+    class DummyField:
+        def __init__(self, name: str, value: str):
+            self.name = name
+            self.value = value
+
+    class DummyEmbed:
+        def __init__(self, title: str, description: str = "", fields: list = None):
+            self.title = title
+            self.description = description
+            self.fields = fields or []
+            self.author = None
+            self.footer = None
+
+    class DummyMessage:
+        def __init__(self, id: int, content: str, embeds: list, components: list):
+            self.id = id
+            self.content = content
+            self.embeds = embeds
+            self.components = components
+            self.author = type("DummyAuthor", (), {"id": 664508672713424926})()
+
+    class DummyConfig:
+        quest_auto_reset_enabled = True
+        quest_auto_buy_scroll = True
+        quest_impossible_keywords = ["mega chamber"]
+        autofight_channel_id = 1488006398255300658
+
+    class DummyBot:
+        def __init__(self):
+            self.config = DummyConfig()
+            self.quest_data = {}
+            self.challenge_data = {}
+            self.pause_fishing = False
+            self.last_fish = 0.0
+
+    btn_challenges = DummyButton("Challenges", "challenges", emoji="⚔️")
+    btn_invites = DummyButton("Battle invitations", "invitations", emoji="📩")
+    row = DummyRow([btn_challenges, btn_invites])
+
+    embed = DummyEmbed(
+        title="Available Battling Challenges in PokeMeow",
+        fields=[
+            DummyField("Gyms, Elite Four, Champions ;b league-progress", "Use ;gym to challenge Gym Leaders..."),
+            DummyField("Mega Chambers ;mc ch", "Use ;mc to view and challenge Mega Chambers..."),
+        ]
+    )
+
+    msg = DummyMessage(id=987654321, content="", embeds=[embed], components=[row])
+
+    bot = DummyBot()
+    qm = QuestManager.__new__(QuestManager)
+    qm.bot = bot
+    qm.config = bot.config
+    qm._last_reset_per_slot = {}
+    qm._clicked_challenge_messages = {}
+    qm._pending_scroll_buy_for_slot = None
+
+    # Run on_message
+    asyncio.run(qm.on_message(msg))
+
+    # Verification: btn_invites must have been clicked!
+    assert btn_invites.clicked is True, "Expected 'Battle invitations' button to be clicked!"
+    assert btn_challenges.clicked is False, "Did not expect 'Challenges' button to be clicked"
+    assert 987654321 in qm._clicked_challenge_messages
+
+    # Debounce test: running on_message again on the same message should NOT re-click
+    btn_invites.clicked = False
+    asyncio.run(qm.on_message(msg))
+    assert btn_invites.clicked is False, "Debounce failed: button re-clicked within 8s"
+
+    print("test_challenge_menu_recognition_and_button_click: PASSED")
+
+
 if __name__ == "__main__":
     test_parse_challenges_text_basic()
     test_parse_challenges_invitations()
     test_find_eligible_npc()
     test_quest_manager_integration()
+    test_challenge_menu_recognition_and_button_click()
     print("ALL CHALLENGE MANAGER TESTS COMPLETED SUCCESSFULLY!")
