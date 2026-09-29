@@ -440,8 +440,6 @@ async def start_bots(token: str) -> None:
     )
     bot.speed_mode_defaults = _capture_speed_defaults(bot)
     bot.humanizer = Humanizer(bot)
-    # WorldBoss system has been removed from runtime.
-    bot.config.world_boss_enabled = False
     if bool(getattr(bot.config, "max_speed_mode_enabled", False)) and bool(getattr(bot.config, "super_low_risk_mode_enabled", False)):
         # Safety-first conflict resolution when both flags are set in config.
         bot.config.max_speed_mode_enabled = False
