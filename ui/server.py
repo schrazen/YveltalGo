@@ -1075,55 +1075,160 @@ def get_recent_item_retrieves():
     )
 
 
+def _resolve_account_aliases(target: str) -> set[str]:
+    target_clean = str(target or "").strip().lower()
+    if not target_clean or target_clean == "all":
+        return set()
+    aliases = {target_clean}
+    config = read_json(CONFIG_PATH, {})
+    accounts_map = get_accounts_container(config)
+    for token, cfg in accounts_map.items():
+        if not is_account_config(cfg):
+            continue
+        token_str = str(token)
+        sk = get_stats_key(token_str).lower()
+        ping = str(cfg.get("CaptchaAlerts", {}).get("Ping", "")).strip().lower()
+        ping_digits = "".join(c for c in ping if c.isdigit())
+        name = str(cfg.get("DisplayName", "") or cfg.get("Name", "")).strip().lower()
+        h_ch = str(cfg.get("HuntingChannel", "")).strip()
+        f_ch = str(cfg.get("FishingChannel", "")).strip()
+        all_keys = {sk, token_str.lower(), ping, ping_digits, name, h_ch, f_ch}
+        all_keys.discard("")
+        if target_clean in all_keys or any(target_clean in k for k in all_keys):
+            aliases.update(all_keys)
+
+    if _runtime_status_provider is not None:
+        try:
+            snapshot = _runtime_status_provider()
+            for b in snapshot.get("bots", []):
+                b_id = str(b.get("id", "")).strip().lower()
+                b_user = str(b.get("username", "")).strip().lower()
+                if b_id in aliases or b_user in aliases or target_clean in {b_id, b_user}:
+                    aliases.add(b_id)
+                    aliases.add(b_user)
+        except Exception:
+            pass
+
+    return aliases
+
+
+def _scan_captcha_file(
+    path: Path,
+    limit: int = 60,
+    query: str = "",
+    aliases: set[str] | None = None,
+    is_outcome: bool = False,
+) -> tuple[list[dict[str, Any]], int, int, int]:
+    if not path.exists():
+        return [], 0, 0, 0
+
+    matching_rows: list[dict[str, Any]] = []
+    total_in_file = 0
+    matching_count = 0
+    resolved_count = 0
+
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                text = line.strip()
+                if not text:
+                    continue
+                total_in_file += 1
+                try:
+                    row = json.loads(text)
+                except Exception:
+                    continue
+
+                if aliases:
+                    row_acc = str(row.get("account", "")).strip().lower()
+                    row_cid = str(row.get("channel_id", "")).strip()
+                    row_sk = str(row.get("stats_key", "")).strip().lower()
+                    if (
+                        row_acc not in aliases
+                        and row_cid not in aliases
+                        and row_sk not in aliases
+                        and not any(a in row_acc for a in aliases if len(a) > 2)
+                    ):
+                        continue
+
+                if query and not _matches_search_query(query, row):
+                    continue
+
+                is_res = is_outcome and str(row.get("outcome", "")).strip().lower() == "resolved"
+                if is_res:
+                    resolved_count += 1
+                matching_count += 1
+                matching_rows.append(row)
+    except Exception:
+        pass
+
+    tail = list(reversed(matching_rows[-limit:]))
+    return tail, total_in_file, matching_count, resolved_count
+
+
 @app.get("/api/telemetry/captcha")
 def get_captcha_telemetry():
     limit_raw = request.args.get("limit", "60")
     query = str(request.args.get("q", "") or "").strip()
+    account_raw = str(request.args.get("account", "") or "").strip()
 
     try:
         limit = max(1, min(int(limit_raw), 300))
     except ValueError:
         limit = 60
 
-    attempts = _read_jsonl_rows(AUTO_SOLVER_ATTEMPTS_PATH, limit=limit)
-    outcomes = _read_jsonl_rows(AUTO_SOLVER_OUTCOMES_PATH, limit=limit)
-    failed_candidates = _read_jsonl_rows(FAILED_CAPTCHA_CANDIDATES_PATH, limit=limit)
-    labels = _read_jsonl_rows(TRAINING_LABELS_PATH, limit=limit)
+    aliases = _resolve_account_aliases(account_raw) if account_raw and account_raw.lower() != "all" else None
 
-    if query:
-        attempts = [row for row in attempts if _matches_search_query(query, row)]
-        outcomes = [row for row in outcomes if _matches_search_query(query, row)]
-        failed_candidates = [row for row in failed_candidates if _matches_search_query(query, row)]
-        labels = [row for row in labels if _matches_search_query(query, row)]
+    tail_attempts, total_attempts, match_attempts, _ = _scan_captcha_file(
+        AUTO_SOLVER_ATTEMPTS_PATH, limit=limit, query=query, aliases=aliases
+    )
+    tail_outcomes, total_outcomes, match_outcomes, match_resolved = _scan_captcha_file(
+        AUTO_SOLVER_OUTCOMES_PATH, limit=limit, query=query, aliases=aliases, is_outcome=True
+    )
+    tail_failed, total_failed, match_failed, _ = _scan_captcha_file(
+        FAILED_CAPTCHA_CANDIDATES_PATH, limit=limit, query=query, aliases=aliases
+    )
+    tail_labels, total_labels, match_labels, _ = _scan_captcha_file(
+        TRAINING_LABELS_PATH, limit=limit, query=query, aliases=aliases
+    )
 
-    resolved_outcomes = [
-        row
-        for row in outcomes
-        if str(row.get("outcome", "") or "").strip().lower() == "resolved"
-    ]
+    solve_rate = round((match_resolved / match_outcomes * 100), 1) if match_outcomes > 0 else 0.0
+
+    counts = {
+        "attempts": match_attempts,
+        "outcomes": match_outcomes,
+        "resolved_outcomes": match_resolved,
+        "failed_outcomes": match_outcomes - match_resolved,
+        "solve_rate": solve_rate,
+        "failed_candidates": match_failed,
+        "labels": match_labels,
+    }
+
+    overall_counts = {
+        "attempts": total_attempts,
+        "outcomes": total_outcomes,
+        "failed_candidates": total_failed,
+        "labels": total_labels,
+    }
 
     return jsonify(
         {
             "ok": True,
             "limit": limit,
             "query": query,
-            "counts": {
-                "attempts": len(attempts),
-                "outcomes": len(outcomes),
-                "resolved_outcomes": len(resolved_outcomes),
-                "failed_candidates": len(failed_candidates),
-                "labels": len(labels),
-            },
+            "account": account_raw,
+            "counts": counts,
+            "overall_counts": overall_counts,
             "paths": {
                 "attempts": str(AUTO_SOLVER_ATTEMPTS_PATH),
                 "outcomes": str(AUTO_SOLVER_OUTCOMES_PATH),
                 "failed_candidates": str(FAILED_CAPTCHA_CANDIDATES_PATH),
                 "labels": str(TRAINING_LABELS_PATH),
             },
-            "attempts": attempts,
-            "outcomes": outcomes,
-            "failed_candidates": failed_candidates,
-            "labels": labels,
+            "attempts": tail_attempts,
+            "outcomes": tail_outcomes,
+            "failed_candidates": tail_failed,
+            "labels": tail_labels,
         }
     )
 

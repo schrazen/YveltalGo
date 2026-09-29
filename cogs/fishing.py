@@ -527,11 +527,20 @@ class Fishing(commands.Cog):
         elif "fished" in before_description:
             tasks = []
 
-            if "caught" in after_description:
+            if "caught" in after_description or "caught" in lowered_combined:
                 ensure_day_mode_window(self.bot)
                 self.bot.fish_catches += 1
                 self.bot.lifetime_fish_catches += 1
                 self.bot.duplicates += 1
+                try:
+                    footer_text = str(getattr(getattr(after.embeds[0], "footer", None), "text", "") or "")
+                    if "You earned " in footer_text:
+                        coins_str = footer_text.split("You earned ")[1].split(" ")[0].replace(",", "")
+                        coins = int(coins_str)
+                        self.bot.coins_earned += coins
+                        self.bot.lifetime_coins_earned += coins
+                except Exception:
+                    pass
                 rarity = resolve_fishing_rarity(before_description)
                 self.bot.fish_rarity_catches[rarity] = (
                     self.bot.fish_rarity_catches.get(rarity, 0) + 1

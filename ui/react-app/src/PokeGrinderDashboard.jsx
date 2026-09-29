@@ -419,11 +419,15 @@ export default function PokeGrinderDashboard() {
     if (searchValue) {
       params.set("q", searchValue);
     }
+    if (selectedUserScope && selectedUserScope !== "all") {
+      params.set("account", selectedUserScope);
+    }
 
     const data = await fetchJson(`/api/telemetry/captcha?${params.toString()}`);
     setCaptchaTelemetry(
       data || {
-        counts: { attempts: 0, outcomes: 0, resolved_outcomes: 0, failed_candidates: 0, labels: 0 },
+        counts: { attempts: 0, outcomes: 0, resolved_outcomes: 0, failed_outcomes: 0, solve_rate: 0, failed_candidates: 0, labels: 0 },
+        overall_counts: { attempts: 0, outcomes: 0, failed_candidates: 0, labels: 0 },
         paths: {},
         attempts: [],
         outcomes: [],
@@ -900,6 +904,7 @@ export default function PokeGrinderDashboard() {
       const channels = [
         { hint: "hunting", channelType: "HUNTING", state: bot?.captcha?.hunting || {} },
         { hint: "fishing", channelType: "FISHING", state: bot?.captcha?.fishing || {} },
+        { hint: "autofight", channelType: "AUTOFIGHT", state: bot?.captcha?.autofight || {} },
       ];
 
       channels.forEach((entry) => {
@@ -1255,7 +1260,7 @@ export default function PokeGrinderDashboard() {
     }, 250);
 
     return () => clearTimeout(debounce);
-  }, [activeTab, captchaTelemetryLimit, captchaTelemetrySearchTrimmed]);
+  }, [activeTab, captchaTelemetryLimit, captchaTelemetrySearchTrimmed, selectedUserScope]);
 
   const fetchPokemonDetailsBySlug = useCallback(async (pokemonSlug, catchData) => {
     const pokemonRes = await fetch(`https://pokeapi.co/api/v2/pokemon/${encodeURIComponent(pokemonSlug)}`);
@@ -2648,19 +2653,29 @@ export default function PokeGrinderDashboard() {
             <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
               <div className="rounded-3xl border border-[#881337]/50 bg-[#4C0519]/30 px-4 py-3">
                 <p className="text-[10px] uppercase tracking-widest text-[#FDA4AF] font-bold">Active Captchas</p>
-                <p className="text-2xl font-bold text-[#F43F5E] mt-1">{captchaQueueRows.length}</p>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <p className="text-2xl font-bold text-[#F43F5E]">{captchaQueueRows.length}</p>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${captchaQueueRows.length > 0 ? "bg-red-500/20 text-red-300 border-red-500/40 animate-pulse" : "bg-emerald-500/10 text-emerald-300 border-emerald-500/30"}`}>
+                    {captchaQueueRows.length > 0 ? "ACTION REQ" : "CLEAR"}
+                  </span>
+                </div>
               </div>
               <div className="rounded-3xl border border-amber-600/40 bg-amber-950/25 px-4 py-3">
                 <p className="text-[10px] uppercase tracking-widest text-amber-200/90 font-bold">Auto Attempts</p>
-                <p className="text-2xl font-bold text-amber-300 mt-1">{Number(captchaTelemetry?.counts?.attempts || 0)}</p>
+                <p className="text-2xl font-bold text-amber-300 mt-1">{Number(captchaTelemetry?.counts?.attempts || 0).toLocaleString()}</p>
               </div>
               <div className="rounded-3xl border border-emerald-700/40 bg-emerald-950/25 px-4 py-3">
                 <p className="text-[10px] uppercase tracking-widest text-emerald-200/90 font-bold">Auto Solved</p>
-                <p className="text-2xl font-bold text-emerald-300 mt-1">{Number(captchaTelemetry?.counts?.resolved_outcomes || 0)}</p>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <p className="text-2xl font-bold text-emerald-300">{Number(captchaTelemetry?.counts?.resolved_outcomes || 0).toLocaleString()}</p>
+                  <span className="text-xs font-semibold text-emerald-400">
+                    {Number(captchaTelemetry?.counts?.solve_rate || 0)}% rate
+                  </span>
+                </div>
               </div>
               <div className="rounded-3xl border border-orange-700/40 bg-orange-950/25 px-4 py-3">
                 <p className="text-[10px] uppercase tracking-widest text-orange-200/90 font-bold">Manual Needed</p>
-                <p className="text-2xl font-bold text-orange-300 mt-1">{Number(captchaTelemetry?.counts?.failed_candidates || 0)}</p>
+                <p className="text-2xl font-bold text-orange-300 mt-1">{Number(captchaTelemetry?.counts?.failed_candidates || 0).toLocaleString()}</p>
               </div>
             </div>
 
@@ -2968,7 +2983,10 @@ export default function PokeGrinderDashboard() {
 
               <div className="p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div>
-                  <h4 className="text-[10px] font-bold text-[#9F1239] uppercase tracking-widest mb-2 border-b border-[#380D16] pb-1.5">Auto Attempts</h4>
+                  <h4 className="text-[10px] font-bold text-[#9F1239] uppercase tracking-widest mb-2 border-b border-[#380D16] pb-1.5 flex justify-between items-center">
+                    <span>Auto Attempts</span>
+                    <span className="text-[#FDA4AF] font-mono text-[9px]">{Number(captchaTelemetry?.counts?.attempts || 0).toLocaleString()}</span>
+                  </h4>
                   <div className="bg-[#050000] border border-[#380D16] rounded-xl overflow-hidden">
                     <div className="max-h-56 overflow-auto" onWheel={handleScrollRegionWheel}>
                       <table className="w-full text-left text-[10px] font-mono">
@@ -2999,7 +3017,10 @@ export default function PokeGrinderDashboard() {
                 </div>
 
                 <div>
-                  <h4 className="text-[10px] font-bold text-[#9F1239] uppercase tracking-widest mb-2 border-b border-[#380D16] pb-1.5">Solver Outcomes</h4>
+                  <h4 className="text-[10px] font-bold text-[#9F1239] uppercase tracking-widest mb-2 border-b border-[#380D16] pb-1.5 flex justify-between items-center">
+                    <span>Solver Outcomes</span>
+                    <span className="text-[#FDA4AF] font-mono text-[9px]">{Number(captchaTelemetry?.counts?.outcomes || 0).toLocaleString()} ({Number(captchaTelemetry?.counts?.solve_rate || 0)}% solved)</span>
+                  </h4>
                   <div className="bg-[#050000] border border-[#380D16] rounded-xl overflow-hidden">
                     <div className="max-h-56 overflow-auto" onWheel={handleScrollRegionWheel}>
                       <table className="w-full text-left text-[10px] font-mono">
@@ -3030,7 +3051,10 @@ export default function PokeGrinderDashboard() {
                 </div>
 
                 <div>
-                  <h4 className="text-[10px] font-bold text-[#9F1239] uppercase tracking-widest mb-2 border-b border-[#380D16] pb-1.5">Failed Candidates</h4>
+                  <h4 className="text-[10px] font-bold text-[#9F1239] uppercase tracking-widest mb-2 border-b border-[#380D16] pb-1.5 flex justify-between items-center">
+                    <span>Failed Candidates</span>
+                    <span className="text-[#FDA4AF] font-mono text-[9px]">{Number(captchaTelemetry?.counts?.failed_candidates || 0).toLocaleString()}</span>
+                  </h4>
                   <div className="bg-[#050000] border border-[#380D16] rounded-xl overflow-hidden">
                     <div className="max-h-56 overflow-auto" onWheel={handleScrollRegionWheel}>
                       <table className="w-full text-left text-[10px] font-mono">
@@ -3067,7 +3091,10 @@ export default function PokeGrinderDashboard() {
                 </div>
 
                 <div>
-                  <h4 className="text-[10px] font-bold text-[#9F1239] uppercase tracking-widest mb-2 border-b border-[#380D16] pb-1.5">Training Labels</h4>
+                  <h4 className="text-[10px] font-bold text-[#9F1239] uppercase tracking-widest mb-2 border-b border-[#380D16] pb-1.5 flex justify-between items-center">
+                    <span>Training Labels</span>
+                    <span className="text-[#FDA4AF] font-mono text-[9px]">{Number(captchaTelemetry?.counts?.labels || 0).toLocaleString()}</span>
+                  </h4>
                   <div className="bg-[#050000] border border-[#380D16] rounded-xl overflow-hidden">
                     <div className="max-h-56 overflow-auto" onWheel={handleScrollRegionWheel}>
                       <table className="w-full text-left text-[10px] font-mono">
