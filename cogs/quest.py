@@ -525,7 +525,6 @@ class QuestManager(commands.Cog):
             for t in (
                 "available battling challenges",
                 "challenges in pokemeow",
-                "basic challenges have no requirements",
                 "gyms, elite four, champions",
                 "power station",
                 "meowrogue",
@@ -533,12 +532,12 @@ class QuestManager(commands.Cog):
                 "battle frontier",
                 "unown ruins",
             )
-        )
+        ) and "basic challenges have no requirements" not in combined
+
         if is_challenge_menu:
             msg_id = int(getattr(message, "id", 0) or 0)
             now = time.time()
-            last_clicked = self._clicked_challenge_messages.get(msg_id, 0.0)
-            if (now - last_clicked) > 8.0:
+            if msg_id and msg_id not in self._clicked_challenge_messages:
                 clicked = False
                 for row in getattr(message, "components", []) or []:
                     if clicked:
@@ -557,6 +556,12 @@ class QuestManager(commands.Cog):
                         ):
                             if not bool(getattr(btn, "disabled", False)):
                                 self._clicked_challenge_messages[msg_id] = now
+                                if len(self._clicked_challenge_messages) > 200:
+                                    oldest = min(
+                                        self._clicked_challenge_messages.keys(),
+                                        key=lambda k: self._clicked_challenge_messages[k],
+                                    )
+                                    self._clicked_challenge_messages.pop(oldest, None)
                                 clicked = True
                                 runtime_info_log("[QuestManager] Clicking 'Battle invitations' button on challenges message...")
                                 try:

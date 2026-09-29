@@ -10,8 +10,8 @@
     "action": "auto_reset",
     "default_action": "auto_reset",
     "battle_mode": null,
-    "times_seen": 38,
-    "last_seen_utc": "2026-09-29T18:35:32.550683+00:00",
+    "times_seen": 43,
+    "last_seen_utc": "2026-09-29T18:50:45.234708+00:00",
     "sample_titles": [
       "Complete the Mega Chamber",
       "Defeat 5 Mega Chambers"
@@ -29,8 +29,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "npc 210",
-    "times_seen": 21,
-    "last_seen_utc": "2026-09-29T18:35:32.571142+00:00",
+    "times_seen": 25,
+    "last_seen_utc": "2026-09-29T18:50:45.241326+00:00",
     "sample_titles": [
       "Defeat a Basic Challenger",
       "⚔️ **Defeat a Basic Challenger**",
@@ -49,8 +49,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "master_challenger",
-    "times_seen": 32,
-    "last_seen_utc": "2026-09-29T18:43:42.408384+00:00",
+    "times_seen": 36,
+    "last_seen_utc": "2026-09-29T18:50:45.237267+00:00",
     "sample_titles": [
       "Defeat a Master Challenger!",
       "Defeat a Master Challenger"
@@ -100,8 +100,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "npc 210",
-    "times_seen": 29,
-    "last_seen_utc": "2026-09-29T18:49:11.770350+00:00",
+    "times_seen": 35,
+    "last_seen_utc": "2026-09-29T18:50:45.233709+00:00",
     "sample_titles": [
       "Defeat 2 Challengers in battle",
       "Defeat 3 Boss Challengers!"
@@ -199,8 +199,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 32,
-    "last_seen_utc": "2026-09-29T18:35:32.562067+00:00",
+    "times_seen": 36,
+    "last_seen_utc": "2026-09-29T18:50:45.238266+00:00",
     "sample_titles": [
       "Encounter 500 Pokemon in the wild",
       "Encounter 500 Pokemon in wild",
@@ -219,8 +219,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 14,
-    "last_seen_utc": "2026-09-29T18:43:42.409384+00:00",
+    "times_seen": 18,
+    "last_seen_utc": "2026-09-29T18:50:45.240266+00:00",
     "sample_titles": [
       "Fish & Catch 25 Pokemon with a Pokelure active!",
       "Fish & Catch 25 Pokemon with a Pokelure active > 💰 R"
@@ -338,8 +338,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 47,
-    "last_seen_utc": "2026-09-29T18:49:11.766276+00:00",
+    "times_seen": 55,
+    "last_seen_utc": "2026-09-29T18:50:45.229098+00:00",
     "sample_titles": [
       "Catch 20 Water-type Pokemon",
       "Catch 20 Grass Type Pokemo",
@@ -553,8 +553,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 6,
-    "last_seen_utc": "2026-09-29T18:49:11.768251+00:00",
+    "times_seen": 9,
+    "last_seen_utc": "2026-09-29T18:50:45.232703+00:00",
     "sample_titles": [
       "Defeat 3 Boss Ch"
     ],
@@ -575,6 +575,24 @@
     "last_seen_utc": "2026-09-29T18:49:29.748132+00:00",
     "sample_titles": [
       "**receive 1 🧁 <:gingerbread_cookie:921832873751896157> or <:candy_cane:921831334731731004> from another player**"
+    ],
+    "is_custom": false
+  },
+  {
+    "id": "auto_battle_invitations_1790707845",
+    "title": "Battle invitations",
+    "pattern": "Battle\\ invitations",
+    "category": "battle",
+    "description": "Auto-discovered PokéMeow quest: 'Battle invitations'",
+    "doable_auto": true,
+    "is_impossible": false,
+    "action": "auto_complete",
+    "default_action": "auto_complete",
+    "battle_mode": "npc 1",
+    "times_seen": 2,
+    "last_seen_utc": "2026-09-29T18:50:45.224607+00:00",
+    "sample_titles": [
+      "Battle invitations"
     ],
     "is_custom": false
   }
