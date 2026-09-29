@@ -185,18 +185,8 @@ exit /b 0
 echo Cleaning up background processes...
 taskkill /F /IM electron.exe >nul 2>&1
 
-powershell -NoProfile -Command "
-$conns = Get-NetTCPConnection -LocalPort 8787 -ErrorAction SilentlyContinue;
-if ($conns) {
-  $pids = $conns | Select-Object -ExpandProperty OwningProcess -Unique;
-  foreach ($p in $pids) {
-    if ($p -gt 0) {
-      Write-Host ('Stopping process ID ' + $p + ' listening on port 8787...');
-      Stop-Process -Id $p -Force -ErrorAction SilentlyContinue;
-    }
-  }
-}
-"
+powershell -NoProfile -Command "$conns = Get-NetTCPConnection -LocalPort 8787 -ErrorAction SilentlyContinue; if ($conns) { $conns | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue } }"
 echo Cleanup complete.
-timeout /t 2 /nobreak >nul
+ping 127.0.0.1 -n 2 >nul
+if not "%~1"=="" exit /b 0
 goto menu
