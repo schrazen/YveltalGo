@@ -377,6 +377,29 @@ export default function PokeGrinderDashboard() {
   const [pokemonFallbackBusy, setPokemonFallbackBusy] = useState(false);
   const [overviewSection, setOverviewSection] = useState("highlights");
   const [eventsFocusUser, setEventsFocusUser] = useState("");
+  const [complications, setComplications] = useState({
+    total_complications: 0,
+    flee_count: 0,
+    flees: [],
+    flee_breakdown_by_pokemon: {},
+    flee_breakdown_by_rarity: {},
+    flee_breakdown_by_ball: {},
+    ball_starvation_count: 0,
+    ball_starvations: [],
+    coin_starvation_count: 0,
+    coin_starvations: [],
+    cooldown_block_count: 0,
+    daily_limit_count: 0,
+    unhandled_response_count: 0,
+    unhandled_responses: [],
+    special_events_count: 0,
+    special_events: [],
+  });
+  const [pokemeowEvents, setPokemeowEvents] = useState([]);
+  const [complicationsTimeRange, setComplicationsTimeRange] = useState(24);
+  const [complicationsFilter, setComplicationsFilter] = useState("all");
+  const [sessionAnalysis, setSessionAnalysis] = useState(null);
+  const [sessionAnalysisLoading, setSessionAnalysisLoading] = useState(false);
   const [newAccount, setNewAccount] = useState({
     token: "",
     huntingChannelId: "",
@@ -435,6 +458,38 @@ export default function PokeGrinderDashboard() {
         labels: [],
       },
     );
+  };
+
+  const fetchComplicationsData = useCallback(async () => {
+    try {
+      const comp = await fetchJsonWithFallback(
+        `/api/session/complications?hours=${complicationsTimeRange}&ts=${Date.now()}`,
+        { total_complications: 0, flee_count: 0, flees: [] }
+      );
+      setComplications(comp || {});
+      const evs = await fetchJsonWithFallback(
+        `/api/session/events?limit=80&ts=${Date.now()}`,
+        { events: [] }
+      );
+      setPokemeowEvents(Array.isArray(evs?.events) ? evs.events : []);
+    } catch {
+      // Ignore
+    }
+  }, [complicationsTimeRange]);
+
+  const runSessionAnalysis = async () => {
+    setSessionAnalysisLoading(true);
+    try {
+      const data = await fetchJsonWithFallback(
+        `/api/session/analysis?hours=${complicationsTimeRange}&ts=${Date.now()}`,
+        null
+      );
+      setSessionAnalysis(data);
+    } catch {
+      setSessionAnalysis(null);
+    } finally {
+      setSessionAnalysisLoading(false);
+    }
   };
 
   const accountLabelById = useMemo(
@@ -1262,6 +1317,14 @@ export default function PokeGrinderDashboard() {
     return () => clearTimeout(debounce);
   }, [activeTab, captchaTelemetryLimit, captchaTelemetrySearchTrimmed, selectedUserScope]);
 
+  useEffect(() => {
+    if (activeTab === "complications" || (activeTab === "overview" && overviewSection === "complications")) {
+      fetchComplicationsData();
+      const timer = setInterval(fetchComplicationsData, 4000);
+      return () => clearInterval(timer);
+    }
+  }, [activeTab, overviewSection, fetchComplicationsData]);
+
   const fetchPokemonDetailsBySlug = useCallback(async (pokemonSlug, catchData) => {
     const pokemonRes = await fetch(`https://pokeapi.co/api/v2/pokemon/${encodeURIComponent(pokemonSlug)}`);
     if (!pokemonRes.ok) {
@@ -1813,6 +1876,328 @@ export default function PokeGrinderDashboard() {
     }
   };
 
+  const renderComplicationsView = (isOverviewCompact = false) => {
+    const fleeBalls = complications?.flee_breakdown_by_ball || {};
+    const fleeRarities = complications?.flee_breakdown_by_rarity || {};
+    const fleePokemon = complications?.flee_breakdown_by_pokemon || {};
+    const topFled = Object.entries(fleePokemon).sort((a, b) => b[1] - a[1]).slice(0, 6);
+
+    const filteredEvents = (pokemeowEvents || []).filter((ev) => {
+      if (complicationsFilter === "complications") return ev.is_complication;
+      if (complicationsFilter === "flees") return ev.category === "hunt_flee" || ev.category === "fish_flee";
+      if (complicationsFilter === "starvation") return ev.category === "ball_starvation" || ev.category === "coin_starvation";
+      if (complicationsFilter === "events") return ["quest_ready", "quest_complete", "egg_event", "item_retrieved"].includes(ev.category);
+      if (complicationsFilter === "unhandled") return ev.category === "unhandled_response";
+      return true;
+    });
+
+    return (
+      <section className="space-y-4">
+        <div className="bg-slate-900 rounded-2xl border border-slate-800 p-4 shadow-md flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <WarningIcon className="w-5 h-5 text-rose-500" />
+              PokéMeow Complications & Flee Diagnostics
+            </h2>
+            <p className="text-xs text-slate-400 mt-1">
+              Active response monitoring: tracks flee rates, ball depletion, coin starvation, rate-limits, and special game events.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center bg-slate-950/80 rounded-xl p-1 border border-slate-800 text-xs">
+              {[
+                { label: "1h", val: 1 },
+                { label: "6h", val: 6 },
+                { label: "24h", val: 24 },
+                { label: "All", val: 720 },
+              ].map((pill) => (
+                <button
+                  key={pill.val}
+                  onClick={() => setComplicationsTimeRange(pill.val)}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                    complicationsTimeRange === pill.val
+                      ? "bg-rose-600 text-white shadow-sm"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  {pill.label}
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={runSessionAnalysis}
+              disabled={sessionAnalysisLoading}
+              className="bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-all shadow-md flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <PulseIcon className="w-3.5 h-3.5" />
+              {sessionAnalysisLoading ? "Analyzing..." : "Deep Session Analysis"}
+            </button>
+
+            <button
+              onClick={fetchComplicationsData}
+              className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-2 rounded-xl transition-colors border border-slate-700"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {complications?.ball_starvation_count > 0 && (
+          <div className="bg-rose-950/40 border border-rose-800/80 rounded-2xl p-4 flex items-start gap-3 text-rose-200">
+            <WarningIcon className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+            <div>
+              <div className="font-bold text-sm text-rose-100">CRITICAL: Pokéball Starvation Detected ({complications.ball_starvation_count} occurrences)</div>
+              <div className="text-xs text-rose-300/90 mt-1">
+                The bot encountered wild Pokémon but had 0 balls in inventory. Consider increasing your auto_buy amounts in Configuration to maintain a larger reserve.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {complications?.coin_starvation_count > 0 && (
+          <div className="bg-amber-950/40 border border-amber-800/80 rounded-2xl p-4 flex items-start gap-3 text-amber-200">
+            <WarningIcon className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <div className="font-bold text-sm text-amber-100">WARNING: Insufficient Pokécoins for Auto-Buy ({complications.coin_starvation_count} occurrences)</div>
+              <div className="text-xs text-amber-300/90 mt-1">
+                Auto-buy attempted to purchase Pokéballs but PokéMeow returned insufficient coins. Farm battles or lower auto_buy target quantities.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {sessionAnalysis && (
+          <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
+                <PulseIcon className="w-3.5 h-3.5" />
+                Session Analysis Report ({sessionAnalysis.duration_minutes || 0}m window)
+              </span>
+              <button onClick={() => setSessionAnalysis(null)} className="text-xs text-slate-500 hover:text-slate-300">✕ Close</button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                <span className="text-slate-400">Hunt Catch Rate</span>
+                <p className="text-base font-bold text-emerald-400">{sessionAnalysis?.hunting?.catch_rate_percent || 0}%</p>
+                <span className="text-[10px] text-slate-500">{sessionAnalysis?.hunting?.catches || 0} caught / {sessionAnalysis?.hunting?.encounters || 0}</span>
+              </div>
+              <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                <span className="text-slate-400">Fish Catch Rate</span>
+                <p className="text-base font-bold text-sky-400">{sessionAnalysis?.fishing?.catch_rate_percent || 0}%</p>
+                <span className="text-[10px] text-slate-500">{sessionAnalysis?.fishing?.catches || 0} caught / {sessionAnalysis?.fishing?.escapes || 0} escaped</span>
+              </div>
+              <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                <span className="text-slate-400">Human Breaks</span>
+                <p className="text-base font-bold text-amber-400">{sessionAnalysis?.anti_detection?.human_breaks || 0}</p>
+                <span className="text-[10px] text-slate-500">{sessionAnalysis?.anti_detection?.human_break_minutes || 0}m stealth downtime</span>
+              </div>
+              <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                <span className="text-slate-400">Captcha Accuracy</span>
+                <p className="text-base font-bold text-purple-400">
+                  {sessionAnalysis?.captcha?.solver_resolved + sessionAnalysis?.captcha?.solver_failed > 0
+                    ? `${Math.round(sessionAnalysis.captcha.solver_resolved / (sessionAnalysis.captcha.solver_resolved + sessionAnalysis.captcha.solver_failed) * 100)}%`
+                    : "100%"}
+                </p>
+                <span className="text-[10px] text-slate-500">{sessionAnalysis?.captcha?.solver_resolved || 0} resolved</span>
+              </div>
+            </div>
+            {sessionAnalysis.recommendations && sessionAnalysis.recommendations.length > 0 && (
+              <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-xs space-y-1">
+                <div className="font-bold text-slate-300">Automated Recommendations:</div>
+                {sessionAnalysis.recommendations.map((rec, i) => (
+                  <div key={i} className="text-slate-400 flex items-start gap-1.5">
+                    <span className="text-rose-400 font-bold">•</span>
+                    <span>{rec}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="bg-slate-900 p-3.5 rounded-xl border border-slate-800 shadow-md">
+            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Flees</span>
+            <p className="text-2xl font-bold text-rose-400 mt-1">{complications?.flee_count || 0}</p>
+            <span className="text-[10px] text-slate-500">Missed / got away</span>
+          </div>
+
+          <div className={`p-3.5 rounded-xl border shadow-md transition-colors ${
+            (complications?.ball_starvation_count || 0) > 0
+              ? "bg-rose-950/30 border-rose-800/60"
+              : "bg-slate-900 border-slate-800"
+          }`}>
+            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Ball Starvation</span>
+            <p className={`text-2xl font-bold mt-1 ${(complications?.ball_starvation_count || 0) > 0 ? "text-rose-400" : "text-emerald-400"}`}>
+              {complications?.ball_starvation_count || 0}
+            </p>
+            <span className="text-[10px] text-slate-500">Out of Pokeballs</span>
+          </div>
+
+          <div className={`p-3.5 rounded-xl border shadow-md transition-colors ${
+            (complications?.coin_starvation_count || 0) > 0
+              ? "bg-amber-950/30 border-amber-800/60"
+              : "bg-slate-900 border-slate-800"
+          }`}>
+            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Coin Starvation</span>
+            <p className={`text-2xl font-bold mt-1 ${(complications?.coin_starvation_count || 0) > 0 ? "text-amber-400" : "text-emerald-400"}`}>
+              {complications?.coin_starvation_count || 0}
+            </p>
+            <span className="text-[10px] text-slate-500">Auto-buy fund fails</span>
+          </div>
+
+          <div className="bg-slate-900 p-3.5 rounded-xl border border-slate-800 shadow-md">
+            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Cooldown Blocks</span>
+            <p className="text-2xl font-bold text-amber-400 mt-1">{complications?.cooldown_block_count || 0}</p>
+            <span className="text-[10px] text-slate-500">Please wait hits</span>
+          </div>
+
+          <div className="bg-slate-900 p-3.5 rounded-xl border border-slate-800 shadow-md">
+            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Game Events</span>
+            <p className="text-2xl font-bold text-purple-400 mt-1">{complications?.special_events_count || 0}</p>
+            <span className="text-[10px] text-slate-500">Quests, eggs, drops</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="bg-slate-900 rounded-xl border border-slate-800 p-3.5 shadow-md space-y-2">
+            <div className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
+              <span>Flees by Ball Thrown</span>
+              <PokeBallIcon className="w-3.5 h-3.5 text-slate-500" />
+            </div>
+            {Object.keys(fleeBalls).length === 0 ? (
+              <p className="text-xs text-slate-500 py-2">No flees recorded in window.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {Object.entries(fleeBalls).map(([ball, cnt]) => (
+                  <div key={ball} className="flex items-center justify-between text-xs bg-slate-950/60 px-2.5 py-1.5 rounded-lg border border-slate-800/80">
+                    <span className="font-mono text-slate-300 font-bold uppercase">{ball}</span>
+                    <span className="font-bold text-rose-400">{cnt} fled</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="bg-slate-900 rounded-xl border border-slate-800 p-3.5 shadow-md space-y-2">
+            <div className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
+              <span>Flees by Rarity</span>
+              <SparkleIcon className="w-3.5 h-3.5 text-slate-500" />
+            </div>
+            {Object.keys(fleeRarities).length === 0 ? (
+              <p className="text-xs text-slate-500 py-2">No flees recorded in window.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {Object.entries(fleeRarities).map(([rarity, cnt]) => (
+                  <div key={rarity} className="flex items-center justify-between text-xs bg-slate-950/60 px-2.5 py-1.5 rounded-lg border border-slate-800/80">
+                    <span className="text-slate-300 font-medium">{rarity}</span>
+                    <span className="font-bold text-rose-400">{cnt} fled</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="bg-slate-900 rounded-xl border border-slate-800 p-3.5 shadow-md space-y-2">
+            <div className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
+              <span>Top Escaped Pokémon</span>
+              <WarningIcon className="w-3.5 h-3.5 text-slate-500" />
+            </div>
+            {topFled.length === 0 ? (
+              <p className="text-xs text-slate-500 py-2">No escaped Pokémon recorded.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {topFled.map(([pName, cnt]) => (
+                  <div key={pName} className="flex items-center justify-between text-xs bg-slate-950/60 px-2.5 py-1.5 rounded-lg border border-slate-800/80">
+                    <span className="text-slate-200 font-semibold truncate max-w-[140px]">{pName}</span>
+                    <span className="font-bold text-rose-400">{cnt} escapes</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-md overflow-hidden">
+          <div className="p-3.5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+            <div className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
+              <TerminalIcon className="w-4 h-4 text-rose-500" />
+              Live PokéMeow Response Stream ({filteredEvents.length})
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { label: "All", key: "all" },
+                { label: "Complications", key: "complications" },
+                { label: "Flees", key: "flees" },
+                { label: "Starvation", key: "starvation" },
+                { label: "Quests/Eggs", key: "events" },
+                { label: "Unhandled", key: "unhandled" },
+              ].map((f) => (
+                <button
+                  key={f.key}
+                  onClick={() => setComplicationsFilter(f.key)}
+                  className={`text-[11px] px-2.5 py-1 rounded-lg font-bold border transition-all ${
+                    complicationsFilter === f.key
+                      ? "bg-rose-600/30 text-rose-200 border-rose-500/50"
+                      : "bg-slate-800/60 text-slate-400 border-slate-700/60 hover:text-slate-200"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="divide-y divide-slate-800/80 max-h-[500px] overflow-y-auto font-sans">
+            {filteredEvents.length === 0 ? (
+              <div className="p-6 text-center text-xs text-slate-500">
+                No PokéMeow response events recorded yet for this filter.
+              </div>
+            ) : (
+              filteredEvents.map((ev, idx) => {
+                const cat = ev.category || "unknown";
+                let badgeClass = "bg-slate-800 text-slate-300 border-slate-700";
+                if (cat.includes("flee")) badgeClass = "bg-rose-950/60 text-rose-300 border-rose-800/70";
+                else if (cat.includes("starvation")) badgeClass = "bg-red-950/70 text-red-300 border-red-800/80 font-bold";
+                else if (cat.includes("cooldown") || cat.includes("limit")) badgeClass = "bg-amber-950/60 text-amber-300 border-amber-800/70";
+                else if (cat.includes("quest") || cat.includes("egg") || cat.includes("item")) badgeClass = "bg-purple-950/60 text-purple-300 border-purple-800/70";
+                else if (cat.includes("catch")) badgeClass = "bg-emerald-950/60 text-emerald-300 border-emerald-800/70";
+
+                const timeStr = ev.ts ? new Date(ev.ts).toLocaleTimeString() : "";
+
+                return (
+                  <div key={idx} className="p-3 hover:bg-slate-800/30 transition-colors flex items-start gap-3">
+                    <span className="text-[10px] text-slate-500 font-mono shrink-0 mt-0.5">{timeStr}</span>
+                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded border uppercase shrink-0 ${badgeClass}`}>
+                      {cat.replace("_", " ")}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-semibold text-slate-200">{ev.headline || "Event"}</div>
+                      {ev.raw_text && (
+                        <div className="text-[11px] text-slate-400 font-mono mt-0.5 truncate bg-slate-950/50 px-2 py-1 rounded border border-slate-800/60">
+                          {ev.raw_text}
+                        </div>
+                      )}
+                      <div className="flex gap-2 text-[10px] text-slate-500 mt-1">
+                        <span>Module: <span className="text-slate-400">{ev.module || "general"}</span></span>
+                        {ev.details?.ball_used && <span>Ball: <span className="font-mono text-slate-300 uppercase">{ev.details.ball_used}</span></span>}
+                        {ev.details?.pokemon_name && <span>Pokémon: <span className="text-slate-300">{ev.details.pokemon_name}</span></span>}
+                        {ev.details?.rarity && <span>Rarity: <span className="text-slate-300">{ev.details.rarity}</span></span>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </section>
+    );
+  };
+
   const pillStyles = {
     idle: "bg-slate-700/50 text-slate-200 border border-slate-600",
     ok: "bg-emerald-500/10 text-emerald-300 border border-emerald-500/30",
@@ -1821,6 +2206,7 @@ export default function PokeGrinderDashboard() {
 
   const uiTabs = [
     { key: "overview", label: "Overview", icon: <LayoutIcon className="w-5 h-5" /> },
+    { key: "complications", label: "Complications", icon: <WarningIcon className="w-5 h-5" /> },
     { key: "runtime", label: "Operations", icon: <PulseIcon className="w-5 h-5" /> },
     { key: "captcha", label: "Captcha", icon: <PokeBallIcon className="w-5 h-5" /> },
     { key: "anti_detect", label: "Telemetry", icon: <TerminalIcon className="w-5 h-5" /> },
@@ -1829,6 +2215,7 @@ export default function PokeGrinderDashboard() {
   const activeTabLabel = uiTabs.find((tab) => tab.key === activeTab)?.label || "Overview";
   const overviewSectionTabs = [
     { key: "highlights", label: "Highlights" },
+    { key: "complications", label: "Complications" },
     { key: "events", label: "Bonuses" },
     { key: "stats", label: "Totals" },
     { key: "snapshot", label: "Bots" },
@@ -2033,6 +2420,8 @@ export default function PokeGrinderDashboard() {
             </div>
             </>
             )}
+
+            {overviewSection === "complications" && renderComplicationsView(true)}
 
             {overviewSection === "events" && (
             <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-md overflow-hidden">
@@ -3190,6 +3579,8 @@ export default function PokeGrinderDashboard() {
             </div>
           </section>
         )}
+
+        {activeTab === "complications" && renderComplicationsView(false)}
 
         {activeTab === "config" && (
           <section>
