@@ -27,8 +27,8 @@ SURVEILLANCE_FILE = LOGS_DIR / "ai_surveillance.jsonl"
 _quota_lock = threading.RLock()
 
 
-def _resolve_api_key(config: dict[str, Any]) -> str:
-    """Resolve Gemini API key from environment or config.json."""
+def _resolve_gemini_api_key(config: dict[str, Any]) -> str:
+    """Resolve Gemini API key from environment, .env, or config.json."""
     env_key = os.getenv("GEMINI_API_KEY", "").strip()
     if env_key:
         return env_key
@@ -48,18 +48,51 @@ def _resolve_api_key(config: dict[str, Any]) -> str:
 
     advisor_cfg = config.get("SmartAdvisor", {}) if isinstance(config, dict) else {}
     if isinstance(advisor_cfg, dict):
-        cfg_key = str(advisor_cfg.get("ApiKey", "") or "").strip()
+        cfg_key = str(advisor_cfg.get("ApiKey", "") or advisor_cfg.get("GeminiApiKey", "") or "").strip()
         if cfg_key:
             return cfg_key
 
     return ""
 
 
+def _resolve_groq_api_key(config: dict[str, Any]) -> str:
+    """Resolve Groq API key from environment, .env, or config.json."""
+    env_key = os.getenv("GROQ_API_KEY", "").strip()
+    if env_key:
+        return env_key
+
+    env_file = BASE_DIR / ".env"
+    if env_file.exists():
+        try:
+            for line in env_file.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line.startswith("GROQ_API_KEY="):
+                    val = line.split("=", 1)[1].strip().strip('"').strip("'")
+                    if val:
+                        return val
+        except Exception:
+            pass
+
+    advisor_cfg = config.get("SmartAdvisor", {}) if isinstance(config, dict) else {}
+    if isinstance(advisor_cfg, dict):
+        cfg_key = str(advisor_cfg.get("GroqApiKey", "") or "").strip()
+        if cfg_key:
+            return cfg_key
+
+    return ""
+
+
+def _resolve_api_key(config: dict[str, Any]) -> str:
+    """Backwards-compatible alias for Gemini API key."""
+    return _resolve_gemini_api_key(config)
+
+
 class SmartAdvisor:
-    """Intelligent fallback and surveillance engine backed by Gemini 3.1 Flash Lite.
+    """Intelligent fallback and surveillance engine backed by Gemini & Groq.
     
     Operates strictly as an emergency rescue mechanism:
     - 0 API calls during normal routine grinding.
+    - Tiered multi-provider fallback: Gemini Flash-Lite -> Groq LPU engine.
     - Quota guarded: max 10 RPM sliding window, hard daily cap (default 400 RPD).
     - Multi-layer validation: AI cannot perform unauthorized actions or inject rogue commands.
     - Full telemetry: Every incident logged to logs/agent_inbox.jsonl for Antigravity code patching.
@@ -71,11 +104,14 @@ class SmartAdvisor:
         self.enabled: bool = bool(advisor_cfg.get("Enabled", True))
         self.model: str = str(advisor_cfg.get("Model", "gemini-3.1-flash-lite"))
         self.fallback_model: str = str(advisor_cfg.get("FallbackModel", "gemini-3.5-flash-lite"))
+        self.groq_model: str = str(advisor_cfg.get("GroqModel", "openai/gpt-oss-20b"))
         self.max_rpm: int = int(advisor_cfg.get("MaxRequestsPerMinute", 10))
         self.max_rpd: int = int(advisor_cfg.get("MaxRequestsPerDay", 400))
         self.timeout_seconds: float = float(advisor_cfg.get("TimeoutSeconds", 8.0))
 
-        self.api_key: str = _resolve_api_key(self.config)
+        self.gemini_api_key: str = _resolve_gemini_api_key(self.config)
+        self.groq_api_key: str = _resolve_groq_api_key(self.config)
+        self.api_key: str = self.gemini_api_key  # backwards-compatible
         self._minute_window: deque[float] = deque()
         self._consecutive_errors: int = 0
         self._circuit_broken_until: float = 0.0
@@ -86,9 +122,12 @@ class SmartAdvisor:
         self.enabled = bool(advisor_cfg.get("Enabled", True))
         self.model = str(advisor_cfg.get("Model", "gemini-3.1-flash-lite"))
         self.fallback_model = str(advisor_cfg.get("FallbackModel", "gemini-3.5-flash-lite"))
+        self.groq_model = str(advisor_cfg.get("GroqModel", "openai/gpt-oss-20b"))
         self.max_rpm = int(advisor_cfg.get("MaxRequestsPerMinute", 10))
         self.max_rpd = int(advisor_cfg.get("MaxRequestsPerDay", 400))
-        self.api_key = _resolve_api_key(self.config)
+        self.gemini_api_key = _resolve_gemini_api_key(self.config)
+        self.groq_api_key = _resolve_groq_api_key(self.config)
+        self.api_key = self.gemini_api_key
 
     def get_quota_status(self) -> dict[str, Any]:
         """Read and normalize current daily quota usage."""
@@ -130,8 +169,8 @@ class SmartAdvisor:
         """Check if request is permitted under rate limit and daily quota."""
         if not self.enabled:
             return False, "SmartAdvisor is disabled in config."
-        if not self.api_key:
-            return False, "No Gemini API key configured."
+        if not self.gemini_api_key and not self.groq_api_key:
+            return False, "No AI API key configured (neither Gemini nor Groq)."
 
         now = time.time()
         if now < self._circuit_broken_until:
@@ -153,7 +192,10 @@ class SmartAdvisor:
 
     async def _post_gemini(self, model: str, prompt: str, system_prompt: str = "") -> dict[str, Any]:
         """Execute raw async POST to Gemini REST API endpoint."""
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={self.api_key}"
+        if not self.gemini_api_key:
+            return {"success": False, "error": "No Gemini API key available"}
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={self.gemini_api_key}"
         
         contents = []
         if system_prompt:
@@ -171,49 +213,120 @@ class SmartAdvisor:
         }
 
         timeout = aiohttp.ClientTimeout(total=self.timeout_seconds)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(url, json=payload) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    self._consecutive_errors = 0
-                    self._increment_quota()
-                    self._minute_window.append(time.time())
-                    
-                    try:
-                        text = data["candidates"][0]["content"]["parts"][0]["text"]
-                        return {"success": True, "data": json.loads(text), "model_used": model}
-                    except Exception as parse_err:
-                        return {"success": False, "error": f"JSON parse error: {parse_err}", "raw": data}
-                else:
-                    err_body = await resp.text()
-                    return {"success": False, "status": resp.status, "error": err_body}
+        try:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(url, json=payload) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        self._consecutive_errors = 0
+                        self._increment_quota()
+                        self._minute_window.append(time.time())
+                        
+                        try:
+                            text = data["candidates"][0]["content"]["parts"][0]["text"]
+                            return {"success": True, "data": json.loads(text), "model_used": f"gemini:{model}"}
+                        except Exception as parse_err:
+                            return {"success": False, "error": f"JSON parse error: {parse_err}", "raw": data}
+                    else:
+                        err_body = await resp.text()
+                        return {"success": False, "status": resp.status, "error": err_body}
+        except asyncio.TimeoutError:
+            return {"success": False, "error": f"Gemini request timed out after {self.timeout_seconds}s"}
+        except Exception as exc:
+            return {"success": False, "error": f"Gemini network error: {exc}"}
+
+    async def _post_groq(self, model: str, prompt: str, system_prompt: str = "") -> dict[str, Any]:
+        """Execute raw async POST to Groq OpenAI-compatible chat completions endpoint."""
+        if not self.groq_api_key:
+            return {"success": False, "error": "No Groq API key available"}
+
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.groq_api_key}",
+            "Content-Type": "application/json",
+            "User-Agent": "PokeGrinder/1.0 (Windows NT 10.0; Win64; x64)",
+        }
+
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": 0.1,
+            "response_format": {"type": "json_object"},
+        }
+
+        timeout = aiohttp.ClientTimeout(total=self.timeout_seconds)
+        try:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(url, json=payload, headers=headers) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        self._consecutive_errors = 0
+                        self._increment_quota()
+                        self._minute_window.append(time.time())
+
+                        try:
+                            choice = data["choices"][0]["message"]["content"]
+                            return {"success": True, "data": json.loads(choice), "model_used": f"groq:{model}"}
+                        except Exception as parse_err:
+                            return {"success": False, "error": f"Groq JSON parse error: {parse_err}", "raw": data}
+                    else:
+                        err_body = await resp.text()
+                        return {"success": False, "status": resp.status, "error": f"Groq HTTP {resp.status}: {err_body}"}
+        except asyncio.TimeoutError:
+            return {"success": False, "error": f"Groq request timed out after {self.timeout_seconds}s"}
+        except Exception as exc:
+            return {"success": False, "error": f"Groq network error: {exc}"}
 
     async def query_ai(self, prompt: str, system_prompt: str = "") -> dict[str, Any]:
-        """Query Gemini with automatic fallback between flash-lite models."""
+        """Query AI models with tiered multi-provider fallback.
+        
+        Tier 1: Primary Gemini model (gemini-3.1-flash-lite)
+        Tier 2: Gemini fallback model (gemini-3.5-flash-lite)
+        Tier 3: Groq LPU engine (openai/gpt-oss-20b)
+        """
         allowed, reason = self.can_request()
         if not allowed:
             return {"success": False, "error": reason, "skipped": True}
 
-        # Try primary model
-        result = await self._post_gemini(self.model, prompt, system_prompt)
-        if result.get("success"):
-            return result
+        last_error = ""
 
-        # On error (404/429/500), try fallback model once
-        err_msg = str(result.get("error", ""))
-        logger.warning("Primary AI model %s failed: %s. Trying fallback %s", self.model, err_msg, self.fallback_model)
-        
-        if self.fallback_model and self.fallback_model != self.model:
-            fallback_res = await self._post_gemini(self.fallback_model, prompt, system_prompt)
-            if fallback_res.get("success"):
-                return fallback_res
+        # 1. Primary Gemini
+        if self.gemini_api_key:
+            res = await self._post_gemini(self.model, prompt, system_prompt)
+            if res.get("success"):
+                return res
+            last_error = str(res.get("error", ""))
+            logger.warning("Primary Gemini model %s failed: %s. Trying fallback %s", self.model, last_error, self.fallback_model)
+
+            # 2. Fallback Gemini
+            if self.fallback_model and self.fallback_model != self.model:
+                fallback_res = await self._post_gemini(self.fallback_model, prompt, system_prompt)
+                if fallback_res.get("success"):
+                    return fallback_res
+                last_error = str(fallback_res.get("error", ""))
+                logger.warning("Fallback Gemini model %s failed: %s", self.fallback_model, last_error)
+
+        # 3. Groq LPU Ultra-Fast Fallback (sub-100ms)
+        if self.groq_api_key:
+            logger.info("Engaging Groq fallback model (%s)...", self.groq_model)
+            groq_res = await self._post_groq(self.groq_model, prompt, system_prompt)
+            if groq_res.get("success"):
+                logger.info("Groq query succeeded with model %s", self.groq_model)
+                return groq_res
+            last_error = str(groq_res.get("error", ""))
+            logger.warning("Groq fallback model %s failed: %s", self.groq_model, last_error)
 
         self._consecutive_errors += 1
         if self._consecutive_errors >= 3:
             self._circuit_broken_until = time.time() + 300.0  # 5 min cooldown
             logger.error("SmartAdvisor circuit breaker tripped after 3 consecutive failures. Cooling down for 5m.")
 
-        return result
+        return {"success": False, "error": last_error or "All AI providers failed"}
 
     # =========================================================================
     # Specialized Edge-Case Handlers

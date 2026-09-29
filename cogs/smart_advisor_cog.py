@@ -11,7 +11,7 @@ import discord
 from discord import Message, InvalidData
 from discord.ext import commands, tasks
 
-from modules.captcha_gate import is_captcha_active
+from modules.captcha_gate import is_captcha_active, is_in_battle
 from modules.smart_advisor import smart_advisor
 
 if TYPE_CHECKING:
@@ -36,6 +36,39 @@ def _extract_clickable_buttons(message: Message) -> list[tuple[Any, dict[str, st
                     }
                     extracted.append((child, meta))
     return extracted
+
+
+def _is_routine_encounter_or_ball_button(button_cids: list[str], text: str = "") -> bool:
+    """Detect if a message or its buttons belong to routine wild Pokémon catching or fishing."""
+    lowered_text = text.lower()
+    routine_tokens = (
+        "found a wild",
+        "fished a wild",
+        "a wild pokemon appeared",
+        "cast a",
+        "click any of",
+        "balls left",
+        "caught",
+        "got away",
+        "not even a nibble",
+        "cast into the water",
+        "the current is strong",
+    )
+    if any(token in lowered_text for token in routine_tokens):
+        return True
+
+    for cid in button_cids:
+        c = str(cid or "").lower()
+        if (
+            c.startswith("pokemon:")
+            or "ball" in c
+            or c in (
+                "pb", "gb", "ub", "mb", "prb", "db", "bb",
+                "fish_pull", "pb_fish", "gb_fish", "ub_fish", "mb_fish", "prb_fish", "db_fish", "bb_fish"
+            )
+        ):
+            return True
+    return False
 
 
 class SmartAdvisorCog(commands.Cog):
@@ -70,6 +103,36 @@ class SmartAdvisorCog(commands.Cog):
         """Call whenever an action, response, or command happens."""
         self.last_active_timestamp = time.time()
         self.consecutive_stalls = 0
+
+    def _is_message_for_this_bot(self, message: Message) -> bool:
+        """Verify whether this PokéMeow message was targeted at or triggered by our bot account."""
+        if not self.bot or not getattr(self.bot, "user", None):
+            return False
+
+        # 1. Direct interaction ownership check
+        if getattr(message, "interaction", None) and getattr(message.interaction, "user", None) == self.bot.user:
+            return True
+
+        # 2. Direct user mention
+        if self.bot.user in getattr(message, "mentions", []):
+            return True
+
+        # 3. Match username or display name in message content and embeds
+        username = str(getattr(self.bot.user, "name", "") or "").lower()
+        display_name = str(getattr(self.bot.user, "display_name", "") or "").lower()
+        valid_names = {n for n in (username, display_name) if n}
+        if not valid_names:
+            return False
+
+        text_parts = [str(message.content or "")]
+        for em in getattr(message, "embeds", []) or []:
+            text_parts.append(str(getattr(em, "title", "") or ""))
+            text_parts.append(str(getattr(em, "description", "") or ""))
+            if getattr(em, "footer", None) and getattr(em.footer, "text", None):
+                text_parts.append(str(em.footer.text or ""))
+
+        haystack = " ".join(text_parts).lower()
+        return any(n in haystack for n in valid_names)
 
     # =========================================================================
     # Dead-Man's Switch Inactivity Watchdog
@@ -167,8 +230,18 @@ class SmartAdvisorCog(commands.Cog):
                         "has_clickable_buttons": [b[1]["label"] for b in buttons],
                     }
                     recent_messages.append(msg_dict)
-                    if author_id == POKEMEOW_APP_ID and buttons and unhandled_message is None:
-                        unhandled_message = (msg, buttons)
+                    if (
+                        author_id == POKEMEOW_APP_ID
+                        and buttons
+                        and unhandled_message is None
+                        and self._is_message_for_this_bot(msg)
+                    ):
+                        b_cids = [b[1]["custom_id"] for b in buttons]
+                        txt = (msg.content or "") + " " + " ".join(
+                            (e.title or "") + " " + (e.description or "") for e in getattr(msg, "embeds", []) or []
+                        )
+                        if not _is_routine_encounter_or_ball_button(b_cids, txt):
+                            unhandled_message = (msg, buttons)
             except Exception as hist_err:
                 logger.warning("Could not fetch channel history: %s", hist_err)
 
@@ -191,8 +264,13 @@ class SmartAdvisorCog(commands.Cog):
                                 await btn_component.click()
                                 self.mark_active()
                                 return
+                            except InvalidData:
+                                pass
                             except Exception as click_err:
-                                logger.error("AI click execution failed: %s", click_err)
+                                if "50035" in str(click_err) or "Component validation failed" in str(click_err):
+                                    logger.info("Button component expired or unavailable: %s", click_err)
+                                else:
+                                    logger.error("AI click execution failed: %s", click_err)
 
             # Phase 3: AI Inactivity Diagnosis
             # -------------------------------------------------------------
@@ -313,11 +391,43 @@ class SmartAdvisorCog(commands.Cog):
         if author_id != POKEMEOW_APP_ID:
             return
 
-        # Record activity
+        # Crucial guard: Only evaluate messages belonging to THIS bot account
+        if not self._is_message_for_this_bot(message):
+            return
+
+        # Record activity because our bot received a targeted event
         self.mark_active()
+
+        # Channel scope check: only inspect channels configured for this bot
+        channel_id = int(getattr(message.channel, "id", 0) or 0)
+        allowed_channels = {
+            int(getattr(getattr(self.bot, "config", None), "hunting_channel_id", 0) or 0),
+            int(getattr(getattr(self.bot, "config", None), "fishing_channel_id", 0) or 0),
+            int(getattr(getattr(self.bot, "config", None), "autofight_channel_id", 0) or 0),
+            int(getattr(getattr(self.bot, "config", None), "world_boss_channel_id", 0) or 0),
+        }
+        allowed_channels.discard(0)
+        if allowed_channels and channel_id not in allowed_channels:
+            return
+
+        # Ignore if bot is actively fighting or in a WorldBoss encounter (handled by battle cogs)
+        if (
+            is_in_battle(self.bot)
+            or bool(getattr(self.bot, "autofight_active", False))
+            or bool(getattr(self.bot, "world_boss_active", False))
+        ):
+            return
 
         buttons = _extract_clickable_buttons(message)
         if not buttons:
+            return
+
+        # Fast exclusion of routine hunting and fishing spawns / catches / escapes
+        initial_cids = [b[1]["custom_id"] for b in buttons]
+        initial_text = (message.content or "") + " " + " ".join(
+            (e.title or "") + " " + (e.description or "") for e in getattr(message, "embeds", []) or []
+        )
+        if _is_routine_encounter_or_ball_button(initial_cids, initial_text):
             return
 
         # Avoid processing same message repeatedly
@@ -337,14 +447,12 @@ class SmartAdvisorCog(commands.Cog):
         if not current_buttons:
             return
 
-        # Check if the message is actually a known routine action:
-        # e.g., ball selection buttons ('pb', 'gb', 'ub', 'mb', 'prb')
-        button_cids = [b[1]["custom_id"].lower() for b in current_buttons]
-        if any(b in ("pb", "gb", "ub", "mb", "prb", "fish_pull") for b in button_cids) or any("ball" in b for b in button_cids):
-            return
-
-        # Check if it's an active WorldBoss turn (already handled by WorldBoss cog)
-        if bool(getattr(self.bot, "world_boss_active", False)):
+        # Re-verify that refreshed message is not a routine encounter
+        refreshed_cids = [b[1]["custom_id"] for b in current_buttons]
+        refreshed_text = (current_message.content or "") + " " + " ".join(
+            (e.title or "") + " " + (e.description or "") for e in getattr(current_message, "embeds", []) or []
+        )
+        if _is_routine_encounter_or_ball_button(refreshed_cids, refreshed_text):
             return
 
         # This is a TRUE unhandled interactive prompt!
@@ -372,4 +480,7 @@ class SmartAdvisorCog(commands.Cog):
                     except InvalidData:
                         pass
                     except Exception as exc:
-                        logger.error("Failed clicking AI validated button: %s", exc)
+                        if "50035" in str(exc) or "Component validation failed" in str(exc):
+                            logger.info("Button component expired or unavailable: %s", exc)
+                        else:
+                            logger.error("Failed clicking AI validated button: %s", exc)

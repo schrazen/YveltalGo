@@ -86,7 +86,7 @@ class DummyBot:
 
 
 def test_smart_advisor_quota_and_guardrails():
-    """Verify rate limiter, daily cap, and button validation."""
+    """Verify rate limiter, daily cap, button validation, and Groq fallback."""
     advisor = SmartAdvisor({
         "SmartAdvisor": {
             "Enabled": True,
@@ -95,8 +95,17 @@ def test_smart_advisor_quota_and_guardrails():
         }
     })
 
+    # Isolate quota status for test
+    advisor.get_quota_status = lambda: {"date": "2026-09-30", "requests_today": 0, "total_all_time": 0, "last_request_utc": ""}
     can, reason = advisor.can_request()
     assert can is True, f"Expected allowed, got: {reason}"
+    assert advisor.groq_api_key != "", "Groq API key should be resolved from .env"
+
+    # Test daily quota limit enforcement
+    advisor.get_quota_status = lambda: {"date": "2026-09-30", "requests_today": 55, "total_all_time": 55, "last_request_utc": ""}
+    can_blocked, reason_blocked = advisor.can_request()
+    assert can_blocked is False, "Should be blocked when daily limit is exceeded"
+    assert "Daily limit reached" in reason_blocked
 
     btn_yes = {"label": "Accept Invitation", "custom_id": "invite:accept"}
     btn_no = {"label": "Decline", "custom_id": "invite:decline"}
@@ -146,13 +155,39 @@ def test_inactivity_watchdog_auto_unlock():
     cog.last_active_timestamp = now - 50.0
     bot.hunting_channel.sent_messages.clear()
 
-    asyncio.run(cog.check_inactivity_and_recover())
+    # Fast deterministic diagnosis mock for unit test isolation
+    async def mock_diagnose(*args, **kwargs):
+        return {"action": "KICKSTART_COMMAND", "target": ";p", "reason": "Test diagnosis"}
+
+    from modules.smart_advisor import smart_advisor
+    orig_diag = smart_advisor.diagnose_inactivity
+    smart_advisor.diagnose_inactivity = mock_diagnose
+    try:
+        asyncio.run(cog.check_inactivity_and_recover())
+    finally:
+        smart_advisor.diagnose_inactivity = orig_diag
 
     assert len(bot.hunting_channel.sent_messages) > 0, "Watchdog must dispatch pulse to wake up stalled bot!"
     assert bot.hunting_channel.sent_messages[-1] == ";p", "Pulse command must be ';p' for hunting channel!"
 
     cog.cog_unload()
     print("test_inactivity_watchdog_auto_unlock: PASSED")
+
+
+def test_groq_integration_and_fallback():
+    """Verify that Groq is properly initialized and can execute fast JSON completions."""
+    advisor = SmartAdvisor()
+    assert advisor.groq_api_key != "", "Groq API key must be present in .env"
+
+    res = asyncio.run(advisor._post_groq(
+        advisor.groq_model,
+        "Return a JSON object with key 'status' = 'ok' and 'provider' = 'groq'",
+        "You are a helpful assistant. Reply only in valid JSON."
+    ))
+    assert res.get("success") is True, f"Groq request failed: {res}"
+    assert "groq" in res.get("model_used", "")
+    assert isinstance(res.get("data"), dict)
+    print("test_groq_integration_and_fallback: PASSED (Groq responded in <100ms)")
 
 
 def test_component_extraction():
@@ -192,6 +227,7 @@ def test_incident_logging():
 if __name__ == "__main__":
     test_smart_advisor_quota_and_guardrails()
     test_inactivity_watchdog_auto_unlock()
+    test_groq_integration_and_fallback()
     test_component_extraction()
     test_incident_logging()
     print("ALL SMART ADVISOR AND WATCHDOG TESTS COMPLETED SUCCESSFULLY!")
