@@ -22,9 +22,11 @@ from cogs.egg import Egg
 from cogs.berry import BerryGarden
 from cogs.catchbot import CatchBot
 from cogs.autofight import AutoFight
+from cogs.worldboss import WorldBoss
 from cogs.limited_events import LimitedEvents
 from cogs.pokemeow_reader_cog import PokeMeowReaderCog
 from cogs.quest import QuestManager
+from cogs.smart_advisor_cog import SmartAdvisorCog
 from modules.captcha_gate import is_captcha_active
 from modules.logging import logger
 from modules.stats_store import get_stats_key, load_stats_for_key, persist_bot_stats, ensure_day_mode_window
@@ -536,11 +538,18 @@ async def start_bots(token: str) -> None:
         bot.autofight_status = "Disabled"
         bot.autofight_guard_status = ""
 
+    if bool(getattr(bot.config, "world_boss_enabled", False)) and int(getattr(bot.config, "world_boss_channel_id", 0) or 0) != 0:
+        bot.world_boss_status = "Idle"
+        await add_cog_compat(bot, WorldBoss(bot))
+    else:
+        bot.world_boss_status = "Disabled"
+
     await add_cog_compat(bot, LimitedEvents(bot))
     await add_cog_compat(bot, Captcha(bot))
     await add_cog_compat(bot, Egg(bot))
     await add_cog_compat(bot, PokeMeowReaderCog(bot))
     await add_cog_compat(bot, QuestManager(bot))
+    await add_cog_compat(bot, SmartAdvisorCog(bot))
 
     runtime_info_log("start_bots: all cogs loaded; awaiting bot.start (Discord gateway) account_id=%s", account_id)
     try:

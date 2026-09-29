@@ -7,8 +7,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from modules.file_utils import read_tail_jsonl
-
 BASE_DIR = Path(__file__).resolve().parents[1]
 LOG_DIR = BASE_DIR / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -30,7 +28,20 @@ def _safe_str(value: Any) -> str:
 
 
 def _load_recent_from_disk(max_lines: int = 500) -> None:
-    _events.extend(read_tail_jsonl(LOG_PATH, max_lines=max_lines))
+    if not LOG_PATH.exists():
+        return
+
+    try:
+        lines = LOG_PATH.read_text(encoding="utf-8").splitlines()
+    except Exception:
+        return
+
+    for line in lines[-max_lines:]:
+        try:
+            payload = json.loads(line)
+        except Exception:
+            continue
+        _events.append(payload)
 
 
 _load_recent_from_disk()

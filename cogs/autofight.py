@@ -15,6 +15,7 @@ from modules.autofight_log import record_autofight_event
 from modules.cloudflare_indicator import notify_cloudflare_in_channel
 from modules.pokeapi_cache import get_move_brief, get_pokemon_brief
 from modules.captcha_gate import is_captcha_active
+from modules.runtime_file_log import info as runtime_info_log
 
 POKEMEOW_APP_ID = 664508672713424926
 
@@ -4043,28 +4044,31 @@ class AutoFight(commands.Cog):
                 break
 
         if rejection_match:
-            m_id = re.search(r"\bnpc\s*(\d+)", str(self._battle_mode_args or "").lower())
-            if m_id:
-                bad_npc_id = int(m_id.group(1))
-                if not hasattr(self.bot, "unbattleable_npcs") or not isinstance(self.bot.unbattleable_npcs, set):
-                    self.bot.unbattleable_npcs = set()
-                self.bot.unbattleable_npcs.add(bad_npc_id)
-                runtime_info_log(f"[AutoFight] Marked NPC {bad_npc_id} as unbattleable (dispatch rejected: {rejection_match}).")
+            try:
+                m_id = re.search(r"\bnpc\s*(\d+)", str(self._battle_mode_args or "").lower())
+                if m_id:
+                    bad_npc_id = int(m_id.group(1))
+                    if not hasattr(self.bot, "unbattleable_npcs") or not isinstance(self.bot.unbattleable_npcs, set):
+                        self.bot.unbattleable_npcs = set()
+                    self.bot.unbattleable_npcs.add(bad_npc_id)
+                    runtime_info_log(f"[AutoFight] Marked NPC {bad_npc_id} as unbattleable (dispatch rejected: {rejection_match}).")
 
-            self._log_event(
-                "battle_dispatch_rejected",
-                {
+                self._log_event(
+                    "battle_dispatch_rejected",
+                    {
+                        "reason": rejection_match,
+                        "preview": combined_text[:160],
+                        "mode": self._battle_mode_args,
+                    },
+                )
+                self.bot.last_battle_error = {
                     "reason": rejection_match,
-                    "preview": combined_text[:160],
                     "mode": self._battle_mode_args,
-                },
-            )
-            self.bot.last_battle_error = {
-                "reason": rejection_match,
-                "mode": self._battle_mode_args,
-                "ts": time.time(),
-            }
-            if self._run_target_battles > 0:
+                    "ts": time.time(),
+                }
+            except Exception as exc:
+                print(f"[AutoFight] Error handling rejection: {exc}")
+            finally:
                 await self.abort_battle_run(f"dispatch_rejected:{rejection_match}")
             return
 

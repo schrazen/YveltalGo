@@ -102,12 +102,13 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "npc 210",
-    "times_seen": 61,
-    "last_seen_utc": "2026-09-29T19:06:27.699705+00:00",
+    "times_seen": 62,
+    "last_seen_utc": "2026-09-29T20:54:54.200727+00:00",
     "sample_titles": [
       "Defeat 2 Challengers in battle",
       "Defeat 3 Boss Challengers!",
-      "Defeat 3 Boss Challengers"
+      "Defeat 3 Boss Challengers",
+      "Defeat 3 Master Challengers"
     ],
     "is_custom": false
   },
@@ -261,9 +262,11 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 0,
-    "last_seen_utc": "",
-    "sample_titles": [],
+    "times_seen": 1,
+    "last_seen_utc": "2026-09-29T20:54:54.203708+00:00",
+    "sample_titles": [
+      "Catch 15 Uncommon Pokemon"
+    ],
     "is_custom": false
   },
   {
@@ -343,13 +346,14 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 86,
-    "last_seen_utc": "2026-09-29T19:06:27.692223+00:00",
+    "times_seen": 89,
+    "last_seen_utc": "2026-09-29T21:08:16.501623+00:00",
     "sample_titles": [
       "Catch 20 Water-type Pokemon",
       "Catch 20 Grass Type Pokemo",
       "Catch 20 Grass Type Pokemon",
-      "Catch 20 Grass Type Pokemon!"
+      "Catch 20 Grass Type Pokemon!",
+      "<:dexcaught:667082939632189451> **Catch 5 <:firetype:1552804243767959664> Fire Type Pokemon**"
     ],
     "is_custom": false
   },
@@ -540,10 +544,11 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 1,
-    "last_seen_utc": "2026-09-29T18:07:49.240978+00:00",
+    "times_seen": 6,
+    "last_seen_utc": "2026-09-29T21:00:59.813918+00:00",
     "sample_titles": [
-      "**receive 1 🍭 lollipop from another player**"
+      "**receive 1 🍭 lollipop from another player**",
+      "**Receive 1 🍭 lollipop from another player**"
     ],
     "is_custom": false
   },
@@ -634,6 +639,24 @@
     "last_seen_utc": "2026-09-29T19:06:27.688075+00:00",
     "sample_titles": [
       "Battle invitations"
+    ],
+    "is_custom": false
+  },
+  {
+    "id": "auto_receive_2_broccoli_from_other__1790715534",
+    "title": "**Receive 2 🥦 broccoli from other players**",
+    "pattern": "\\*\\*Receive\\ 2\\ 🥦\\ broccoli\\ from\\ other\\ players\\*\\*",
+    "category": "wild_catch",
+    "description": "Auto-discovered PokéMeow quest: '**Receive 2 🥦 broccoli from other players**'",
+    "doable_auto": true,
+    "is_impossible": false,
+    "action": "auto_complete",
+    "default_action": "auto_complete",
+    "battle_mode": null,
+    "times_seen": 3,
+    "last_seen_utc": "2026-09-29T20:58:54.939224+00:00",
+    "sample_titles": [
+      "**Receive 2 🥦 broccoli from other players**"
     ],
     "is_custom": false
   }

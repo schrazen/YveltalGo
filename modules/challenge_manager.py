@@ -124,11 +124,6 @@ def find_eligible_npc_for_quest(
             target_id = master_invites[0]["id"]
             return True, f"npc {target_id}", f"master_invite:{master_invites[0]['name']}"
 
-        available_masters = [m for m in master_list if m.get("id") not in unbattleable]
-        if available_masters:
-            target_id = available_masters[0]["id"]
-            return True, f"npc {target_id}", f"master_unlocked:{available_masters[0]['name']}"
-
         return False, "", "no_master_invite"
 
     # 2. Elite / Boss Challenger Quests
@@ -164,15 +159,11 @@ def find_eligible_npc_for_quest(
             target_id = available_basic[0]["id"]
             return True, f"npc {target_id}", f"general_challenger:{available_basic[0]['name']}"
 
-        available_bosses = [b for b in boss_list if b.get("id") not in unbattleable]
-        if available_bosses:
-            target_id = available_bosses[0]["id"]
-            return True, f"npc {target_id}", f"general_challenger:{available_bosses[0]['name']}"
-
-        available_masters = [m for m in master_list if m.get("id") not in unbattleable]
-        if available_masters:
-            target_id = available_masters[0]["id"]
-            return True, f"npc {target_id}", f"general_challenger:{available_masters[0]['name']}"
+        # If basic list is empty/unbattleable, check invited boss/master
+        active_invites = [inv for inv in invitations if inv.get("id") not in unbattleable]
+        if active_invites:
+            target_id = active_invites[0]["id"]
+            return True, f"npc {target_id}", f"general_challenger_invite:{active_invites[0]['name']}"
 
         fallback_id = 210 if 210 not in unbattleable else 209
         return True, f"npc {fallback_id}", "general_challenger"

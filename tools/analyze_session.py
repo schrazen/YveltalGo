@@ -21,7 +21,6 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BASE_DIR))
 
 from modules.file_utils import read_tail_jsonl
-from modules.pokemeow_reader import get_session_complications_summary
 
 ANTI_DETECT_LOG = BASE_DIR / "logs" / "anti_detect_log.jsonl"
 CAPTCHA_OUTCOMES_LOG = BASE_DIR / "assets" / "captcha_samples" / "auto_solver_outcomes.jsonl"
@@ -209,45 +208,6 @@ def collect_session_metrics(
         break_mins = round(human_break_total_seconds / 60.0, 1)
         insights.append(f"Anti-detection breaks taken: {human_breaks} breaks ({break_mins} mins total downtime).")
 
-    # In-Game Complications & Event Journal
-    complications = get_session_complications_summary(since_dt=window_start, account=account_filter)
-
-    if complications["flee_count"] > 0:
-        insights.append(f"{complications['flee_count']} encounters fled in this window (Breakdown by ball: {complications['flee_breakdown_by_ball']}).")
-        # Check if Rares fled on standard pokeball
-        rare_flees_on_pb = sum(
-            1 for f in complications["flees"]
-            if str(f.get("details", {}).get("rarity", "")).lower() in {"rare", "super rare", "legendary", "shiny", "golden"}
-            and str(f.get("details", {}).get("ball_used", "")).lower() in {"pb", "pokeball"}
-        )
-        if rare_flees_on_pb > 0:
-            recommendations.append(f"{rare_flees_on_pb} high-tier encounters fled using standard Pokéballs. Upgrade config.balls['Rare'] to Greatball (gb) or Ultraball (ub).")
-
-    if complications["ball_starvation_count"] > 0:
-        insights.append(f"CRITICAL: Encountered {complications['ball_starvation_count']} ball starvation alerts (account ran out of balls during encounter).")
-        recommendations.append("Increase auto_buy amounts in config.json to maintain a larger reserve of Pokéballs.")
-
-    if complications["coin_starvation_count"] > 0:
-        insights.append(f"WARNING: Auto-buy purchase failed {complications['coin_starvation_count']} times due to insufficient Pokécoins.")
-        recommendations.append("Account balance is low on Pokécoins. Grind battles or lower auto_buy target quantities.")
-
-    if complications.get("active_encounter_block_count", 0) > 0:
-        insights.append(f"WARNING: Encountered {complications['active_encounter_block_count']} active encounter overlap blocks ('Please catch the Pokemon you spawned first').")
-        recommendations.append("Active encounter overlap detected. Bot auto-recovery waited and safely resumed; consider slightly increasing hunting delay.")
-
-    if complications.get("casket_timeout_count", 0) > 0:
-        insights.append(f"WARNING: {complications['casket_timeout_count']} Sunken Caskets timed out.")
-        recommendations.append("Sunken Casket auto-salvage is now active to automatically click treasure boxes before they sink away.")
-
-    if complications.get("shop_error_count", 0) > 0:
-        insights.append(f"WARNING: {complications['shop_error_count']} shop item purchase errors ('item not in shop').")
-
-    if complications["unhandled_response_count"] > 0:
-        insights.append(f"Recorded {complications['unhandled_response_count']} unhandled PokéMeow responses (stored in logs/pokemeow_events.jsonl for diagnostics).")
-
-    if complications["special_events_count"] > 0:
-        insights.append(f"Tracked {complications['special_events_count']} special in-game events (quests, egg hatch/incubation, held items).")
-
     return {
         "start_utc": earliest_seen.isoformat() if earliest_seen else "N/A",
         "end_utc": latest_seen.isoformat() if latest_seen else "N/A",
@@ -271,7 +231,6 @@ def collect_session_metrics(
             "catch_rate_percent": fish_catch_rate,
             "dispatches": fish_dispatches,
         },
-        "complications": complications,
         "anti_detection": {
             "human_breaks": human_breaks,
             "human_break_minutes": round(human_break_total_seconds / 60.0, 1),
@@ -303,7 +262,6 @@ def format_markdown_report(metrics: dict[str, Any]) -> str:
     f = metrics["fishing"]
     ad = metrics["anti_detection"]
     c = metrics["captcha"]
-    comp = metrics.get("complications", {})
 
     lines = [
         "# PokeGrinder Session Analysis Report",
@@ -327,73 +285,27 @@ def format_markdown_report(metrics: dict[str, Any]) -> str:
 
     lines.extend([
         "",
-        "## 2. In-Game Complications & Flee Diagnostics",
-        f"- **Total Complications Logged**: `{comp.get('total_complications', 0)}`",
-        f"- **Encounter Flees**: `{comp.get('flee_count', 0)}`",
-        f"- **Ball Starvation Alerts**: `{comp.get('ball_starvation_count', 0)}`",
-        f"- **Coin Starvation Alerts**: `{comp.get('coin_starvation_count', 0)}`",
-        f"- **Cooldown Blocks**: `{comp.get('cooldown_block_count', 0)}`",
-        f"- **Daily Limits**: `{comp.get('daily_limit_count', 0)}`",
-    ])
-
-    flee_balls = comp.get("flee_breakdown_by_ball", {})
-    if flee_balls:
-        lines.append("- **Flees by Ball Thrown**:")
-        for b, cnt in sorted(flee_balls.items(), key=lambda x: x[1], reverse=True):
-            lines.append(f"  - **{b}**: {cnt}")
-
-    flee_rarities = comp.get("flee_breakdown_by_rarity", {})
-    if flee_rarities:
-        lines.append("- **Flees by Encounter Rarity**:")
-        for r, cnt in sorted(flee_rarities.items(), key=lambda x: x[1], reverse=True):
-            lines.append(f"  - **{r}**: {cnt}")
-
-    flee_pokemon = comp.get("flee_breakdown_by_pokemon", {})
-    if flee_pokemon:
-        top_fled = sorted(flee_pokemon.items(), key=lambda x: x[1], reverse=True)[:5]
-        lines.append("- **Most Frequent Flees**:")
-        for p, cnt in top_fled:
-            lines.append(f"  - **{p}**: {cnt}")
-
-    unhandled = comp.get("unhandled_responses", [])
-    if unhandled:
-        lines.append(f"- **Unhandled PokéMeow Prompts ({len(unhandled)})**:")
-        for u in unhandled[:3]:
-            lines.append(f"  - `{u.get('headline', '')}`")
-
-    lines.extend([
-        "",
-        "## 3. Special In-Game Events & Discoveries",
-        f"- **Special Events Logged**: `{comp.get('special_events_count', 0)}`",
-    ])
-    events_list = comp.get("special_events", [])
-    if events_list:
-        for ev in events_list[:5]:
-            lines.append(f"- `[{ev.get('category', '')}]` {ev.get('headline', '')}")
-
-    lines.extend([
-        "",
-        "## 4. Fishing Performance",
+        "## 2. Fishing Performance",
         f"- **Cast Prompts**: `{f['casts']}`",
         f"- **Fish Encounters**: `{f['encounters']}`",
         f"- **Fish Caught**: `{f['catches']}`",
         f"- **Got Away**: `{f['escapes']}`",
         f"- **Fishing Catch Rate**: **{f['catch_rate_percent']}%**",
         "",
-        "## 5. Anti-Detection & Timing Telemetry",
+        "## 3. Anti-Detection & Timing Telemetry",
         f"- **Silent Human Breaks**: `{ad['human_breaks']}` ({ad['human_break_minutes']} mins total)",
         f"- **Casual Idle Distractions**: `{ad['idle_pauses']}` ({ad['idle_pause_seconds']}s total)",
         f"- **Simulated Typing Events**: `{ad['typing_simulations']}` (avg `{ad['avg_typing_ms']}ms`)",
         f"- **Cognitive Reflex Hesitations**: Avg `{ad['avg_hesitation_ms']}ms`",
         f"- **Please Wait / Cooldown Clashes**: `{ad['please_wait_cooldown_hits']}`",
         "",
-        "## 6. Captcha Health",
+        "## 4. Captcha Health",
         f"- **Captchas Detected**: `{c['detected']}`",
         f"- **Captchas Resolved**: `{c['resolved']}` (Solver: {c['solver_resolved']} solved, {c['solver_failed']} failed)",
         "",
         "---",
         "",
-        "## 7. Insights & Observations",
+        "## 5. Insights & Observations",
     ])
 
     if metrics["insights"]:
@@ -404,7 +316,7 @@ def format_markdown_report(metrics: dict[str, Any]) -> str:
 
     lines.extend([
         "",
-        "## 8. Recommended Next Actions",
+        "## 6. Recommended Next Actions",
     ])
 
     if metrics["recommendations"]:
