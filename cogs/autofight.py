@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import asyncio
 import re
 import time
 from random import randint
+from typing import Any
 
 from discord import InvalidData, Message
 from discord.ext import commands

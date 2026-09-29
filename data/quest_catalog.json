@@ -10,8 +10,8 @@
     "action": "auto_reset",
     "default_action": "auto_reset",
     "battle_mode": null,
-    "times_seen": 12,
-    "last_seen_utc": "2026-09-29T16:56:08.022310+00:00",
+    "times_seen": 17,
+    "last_seen_utc": "2026-09-29T17:28:26.025513+00:00",
     "sample_titles": [
       "Complete the Mega Chamber",
       "Defeat 5 Mega Chambers"
@@ -29,8 +29,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "challenger",
-    "times_seen": 5,
-    "last_seen_utc": "2026-09-29T16:56:08.023318+00:00",
+    "times_seen": 7,
+    "last_seen_utc": "2026-09-29T17:28:26.026512+00:00",
     "sample_titles": [
       "Defeat a Basic Challenger"
     ],
@@ -47,8 +47,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "challenger",
-    "times_seen": 5,
-    "last_seen_utc": "2026-09-29T16:56:08.024317+00:00",
+    "times_seen": 7,
+    "last_seen_utc": "2026-09-29T17:28:26.027513+00:00",
     "sample_titles": [
       "Defeat a Master Challenger!"
     ],
@@ -97,8 +97,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "challenger",
-    "times_seen": 7,
-    "last_seen_utc": "2026-09-29T16:56:08.021534+00:00",
+    "times_seen": 10,
+    "last_seen_utc": "2026-09-29T17:28:26.024513+00:00",
     "sample_titles": [
       "Defeat 2 Challengers in battle"
     ],
@@ -195,8 +195,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 9,
-    "last_seen_utc": "2026-09-29T16:56:08.054185+00:00",
+    "times_seen": 13,
+    "last_seen_utc": "2026-09-29T17:28:26.027513+00:00",
     "sample_titles": [
       "Encounter 500 Pokemon in the wild",
       "Encounter 500 Pokemon in wild"
@@ -326,8 +326,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 2,
-    "last_seen_utc": "2026-09-29T16:56:03.364425+00:00",
+    "times_seen": 3,
+    "last_seen_utc": "2026-09-29T17:28:21.261288+00:00",
     "sample_titles": [
       "Catch 20 Water-type Pokemon"
     ],
