@@ -590,6 +590,24 @@ class Hunting(commands.Cog):
 
         if not message.embeds:
             inspect_and_record_pokemeow_message(self.bot, message, context_module="hunting")
+            lowered_content = str(message.content or "").lower()
+            if "please catch the pokemon you spawned first" in lowered_content or "catch the pokemon you spawned first" in lowered_content:
+                record_anti_detect_event(
+                    str(self.bot.user) if self.bot.user else "unknown",
+                    "active_encounter_pending",
+                    module="hunting",
+                    channel_id=self.config.hunting_channel_id,
+                    details={"raw": message.content[:120]},
+                )
+                self.bot.hunting_status = "Waiting on active encounter..."
+                await self.bot.log()
+                wait_s = (
+                    self.bot.humanizer.get_natural_jitter(4.5, variance=0.2, min_floor=3.0)
+                    if hasattr(self.bot, "humanizer") and self.bot.humanizer
+                    else 4.0
+                )
+                await asyncio.sleep(wait_s)
+                await self._safe_hunt_pokemon_with_captcha_check()
             return
 
         embed_description = message.embeds[0].description or ""

@@ -231,6 +231,17 @@ def collect_session_metrics(
         insights.append(f"WARNING: Auto-buy purchase failed {complications['coin_starvation_count']} times due to insufficient Pokécoins.")
         recommendations.append("Account balance is low on Pokécoins. Grind battles or lower auto_buy target quantities.")
 
+    if complications.get("active_encounter_block_count", 0) > 0:
+        insights.append(f"WARNING: Encountered {complications['active_encounter_block_count']} active encounter overlap blocks ('Please catch the Pokemon you spawned first').")
+        recommendations.append("Active encounter overlap detected. Bot auto-recovery waited and safely resumed; consider slightly increasing hunting delay.")
+
+    if complications.get("casket_timeout_count", 0) > 0:
+        insights.append(f"WARNING: {complications['casket_timeout_count']} Sunken Caskets timed out.")
+        recommendations.append("Sunken Casket auto-salvage is now active to automatically click treasure boxes before they sink away.")
+
+    if complications.get("shop_error_count", 0) > 0:
+        insights.append(f"WARNING: {complications['shop_error_count']} shop item purchase errors ('item not in shop').")
+
     if complications["unhandled_response_count"] > 0:
         insights.append(f"Recorded {complications['unhandled_response_count']} unhandled PokéMeow responses (stored in logs/pokemeow_events.jsonl for diagnostics).")
 

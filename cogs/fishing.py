@@ -294,6 +294,27 @@ class Fishing(commands.Cog):
             await self._pause_fishing_for_missing_rod(message.content)
             return
 
+        lowered_content = str(message.content or "").lower()
+        if "please catch the pokemon you spawned first" in lowered_content or "catch the pokemon you spawned first" in lowered_content:
+            inspect_and_record_pokemeow_message(self.bot, message, context_module="fishing")
+            record_anti_detect_event(
+                str(self.bot.user) if self.bot.user else "unknown",
+                "active_encounter_pending",
+                module="fishing",
+                channel_id=self.config.fishing_channel_id,
+                details={"raw": message.content[:120]},
+            )
+            self.bot.fishing_status = "Waiting on active encounter..."
+            await self.bot.log()
+            wait_s = (
+                self.bot.humanizer.get_natural_jitter(4.5, variance=0.2, min_floor=3.0)
+                if hasattr(self.bot, "humanizer") and self.bot.humanizer
+                else 4.0
+            )
+            await asyncio.sleep(wait_s)
+            await self._safe_fish_spawn_with_captcha_check()
+            return
+
         if "Please wait" not in message.content:
             inspect_and_record_pokemeow_message(self.bot, message, context_module="fishing")
             return
@@ -498,6 +519,34 @@ class Fishing(commands.Cog):
                     )
                 print(f"[Fishing] Failed clicking cast prompt: {exc}")
 
+            return
+
+        elif (
+            "casket" in lowered_after_description
+            or "sunken" in lowered_after_description
+            or "treasure" in lowered_after_description
+        ):
+            record_anti_detect_event(
+                str(self.bot.user) if self.bot.user else "unknown",
+                "sunken_casket_prompt",
+                module="fishing",
+                channel_id=self.config.fishing_channel_id,
+                details={"desc": after_description[:120]},
+            )
+            self.bot.fishing_status = "Salvaging Sunken Casket..."
+            await self.bot.log()
+            try:
+                if not self._max_speed():
+                    reaction = (
+                        self.bot.humanizer.get_natural_jitter(0.25, variance=0.2, min_floor=0.15)
+                        if hasattr(self.bot, "humanizer") and self.bot.humanizer
+                        else 0.2
+                    )
+                    await asyncio.sleep(reaction)
+                if after.components and after.components[0].children:
+                    await after.components[0].children[0].click()
+            except Exception as exc:
+                print(f"[Fishing] Failed clicking sunken casket button: {exc}")
             return
 
         elif "fished" in after_description:

@@ -1883,11 +1883,25 @@ export default function PokeGrinderDashboard() {
     const topFled = Object.entries(fleePokemon).sort((a, b) => b[1] - a[1]).slice(0, 6);
 
     const filteredEvents = (pokemeowEvents || []).filter((ev) => {
+      const cat = ev.category || "";
       if (complicationsFilter === "complications") return ev.is_complication;
-      if (complicationsFilter === "flees") return ev.category === "hunt_flee" || ev.category === "fish_flee";
-      if (complicationsFilter === "starvation") return ev.category === "ball_starvation" || ev.category === "coin_starvation";
-      if (complicationsFilter === "events") return ["quest_ready", "quest_complete", "egg_event", "item_retrieved"].includes(ev.category);
-      if (complicationsFilter === "unhandled") return ev.category === "unhandled_response";
+      if (complicationsFilter === "flees") return cat === "hunt_flee" || cat === "fish_flee";
+      if (complicationsFilter === "starvation") return cat === "ball_starvation" || cat === "coin_starvation";
+      if (complicationsFilter === "events") {
+        return [
+          "quest_ready",
+          "quest_complete",
+          "egg_event",
+          "item_retrieved",
+          "item_buff_activated",
+          "lootbox_opened",
+          "catchbot_status",
+          "event_status",
+          "berry_garden_status",
+          "system_notice",
+        ].includes(cat);
+      }
+      if (complicationsFilter === "unhandled") return cat === "unhandled_response";
       return true;
     });
 
@@ -2160,11 +2174,19 @@ export default function PokeGrinderDashboard() {
               filteredEvents.map((ev, idx) => {
                 const cat = ev.category || "unknown";
                 let badgeClass = "bg-slate-800 text-slate-300 border-slate-700";
-                if (cat.includes("flee")) badgeClass = "bg-rose-950/60 text-rose-300 border-rose-800/70";
-                else if (cat.includes("starvation")) badgeClass = "bg-red-950/70 text-red-300 border-red-800/80 font-bold";
-                else if (cat.includes("cooldown") || cat.includes("limit")) badgeClass = "bg-amber-950/60 text-amber-300 border-amber-800/70";
-                else if (cat.includes("quest") || cat.includes("egg") || cat.includes("item")) badgeClass = "bg-purple-950/60 text-purple-300 border-purple-800/70";
-                else if (cat.includes("catch")) badgeClass = "bg-emerald-950/60 text-emerald-300 border-emerald-800/70";
+                if (cat.includes("flee") || cat === "casket_timeout" || cat === "active_encounter_pending" || cat === "shop_invalid_item" || cat === "missing_rod") {
+                  badgeClass = "bg-rose-950/60 text-rose-300 border-rose-800/70";
+                } else if (cat.includes("starvation")) {
+                  badgeClass = "bg-red-950/70 text-red-300 border-red-800/80 font-bold";
+                } else if (cat.includes("cooldown") || cat.includes("limit") || cat.includes("captcha")) {
+                  badgeClass = "bg-amber-950/60 text-amber-300 border-amber-800/70";
+                } else if (cat.includes("quest") || cat.includes("egg") || cat.includes("item") || cat.includes("berry") || cat.includes("buff") || cat.includes("lootbox") || cat.includes("catchbot") || cat.includes("event_status") || cat.includes("notice") || cat.includes("shop")) {
+                  badgeClass = "bg-purple-950/60 text-purple-300 border-purple-800/70";
+                } else if (cat.includes("catch")) {
+                  badgeClass = "bg-emerald-950/60 text-emerald-300 border-emerald-800/70 font-semibold";
+                } else if (cat.includes("encounter")) {
+                  badgeClass = "bg-sky-950/60 text-sky-300 border-sky-800/70";
+                }
 
                 const timeStr = ev.ts ? new Date(ev.ts).toLocaleTimeString() : "";
 
