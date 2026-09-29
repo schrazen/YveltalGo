@@ -10,13 +10,14 @@
     "action": "auto_reset",
     "default_action": "auto_reset",
     "battle_mode": null,
-    "times_seen": 71,
-    "last_seen_utc": "2026-09-29T19:06:27.705714+00:00",
+    "times_seen": 82,
+    "last_seen_utc": "2026-09-29T21:26:28.936303+00:00",
     "sample_titles": [
       "Complete the Mega Chamber",
       "Defeat 5 Mega Chambers",
       "Defeat a Mega Chamber!",
-      "Defeat a Mega Chambe"
+      "Defeat a Mega Chambe",
+      "Defeat a Mega Chamber"
     ],
     "is_custom": false
   },
@@ -31,8 +32,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "npc 210",
-    "times_seen": 33,
-    "last_seen_utc": "2026-09-29T19:06:27.712785+00:00",
+    "times_seen": 37,
+    "last_seen_utc": "2026-09-29T21:26:28.985784+00:00",
     "sample_titles": [
       "Defeat a Basic Challenger",
       "⚔️ **Defeat a Basic Challenger**",
@@ -51,8 +52,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "master_challenger",
-    "times_seen": 44,
-    "last_seen_utc": "2026-09-29T19:06:27.704712+00:00",
+    "times_seen": 48,
+    "last_seen_utc": "2026-09-29T21:26:28.898041+00:00",
     "sample_titles": [
       "Defeat a Master Challenger!",
       "Defeat a Master Challenger"
@@ -102,13 +103,14 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "npc 210",
-    "times_seen": 62,
-    "last_seen_utc": "2026-09-29T20:54:54.200727+00:00",
+    "times_seen": 72,
+    "last_seen_utc": "2026-09-29T21:26:28.883781+00:00",
     "sample_titles": [
       "Defeat 2 Challengers in battle",
       "Defeat 3 Boss Challengers!",
       "Defeat 3 Boss Challengers",
-      "Defeat 3 Master Challengers"
+      "Defeat 3 Master Challengers",
+      "Defeat 3 Master Challengers!"
     ],
     "is_custom": false
   },
@@ -203,8 +205,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 44,
-    "last_seen_utc": "2026-09-29T19:06:27.706711+00:00",
+    "times_seen": 48,
+    "last_seen_utc": "2026-09-29T21:26:28.940881+00:00",
     "sample_titles": [
       "Encounter 500 Pokemon in the wild",
       "Encounter 500 Pokemon in wild",
@@ -224,12 +226,13 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 38,
-    "last_seen_utc": "2026-09-29T19:06:27.711786+00:00",
+    "times_seen": 46,
+    "last_seen_utc": "2026-09-29T21:26:28.983772+00:00",
     "sample_titles": [
       "Fish & Catch 25 Pokemon with a Pokelure active!",
       "Fish & Catch 25 Pokemon with a Pokelure active > 💰 R",
-      "Fish & Catch 25 Pokemon with a Pokelure active"
+      "Fish & Catch 25 Pokemon with a Pokelure active",
+      "Fish & Catch 25 Pokemon with a Pokelure acti"
     ],
     "is_custom": false
   },
@@ -262,10 +265,11 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 1,
-    "last_seen_utc": "2026-09-29T20:54:54.203708+00:00",
+    "times_seen": 4,
+    "last_seen_utc": "2026-09-29T21:26:28.706098+00:00",
     "sample_titles": [
-      "Catch 15 Uncommon Pokemon"
+      "Catch 15 Uncommon Pokemon",
+      "Catch 15 Uncommon Pokemon!"
     ],
     "is_custom": false
   },
@@ -346,14 +350,13 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 89,
-    "last_seen_utc": "2026-09-29T21:08:16.501623+00:00",
+    "times_seen": 93,
+    "last_seen_utc": "2026-09-29T21:26:28.743802+00:00",
     "sample_titles": [
       "Catch 20 Water-type Pokemon",
       "Catch 20 Grass Type Pokemo",
       "Catch 20 Grass Type Pokemon",
-      "Catch 20 Grass Type Pokemon!",
-      "<:dexcaught:667082939632189451> **Catch 5 <:firetype:1552804243767959664> Fire Type Pokemon**"
+      "Catch 20 Grass Type Pokemon!"
     ],
     "is_custom": false
   },
@@ -544,11 +547,10 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 6,
-    "last_seen_utc": "2026-09-29T21:00:59.813918+00:00",
+    "times_seen": 1,
+    "last_seen_utc": "2026-09-29T18:07:49.240978+00:00",
     "sample_titles": [
-      "**receive 1 🍭 lollipop from another player**",
-      "**Receive 1 🍭 lollipop from another player**"
+      "**receive 1 🍭 lollipop from another player**"
     ],
     "is_custom": false
   },
@@ -563,8 +565,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 18,
-    "last_seen_utc": "2026-09-29T19:06:27.697191+00:00",
+    "times_seen": 20,
+    "last_seen_utc": "2026-09-29T21:26:28.770593+00:00",
     "sample_titles": [
       "Defeat 3 Boss Ch"
     ],
@@ -635,28 +637,28 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "npc 1",
-    "times_seen": 6,
-    "last_seen_utc": "2026-09-29T19:06:27.688075+00:00",
+    "times_seen": 8,
+    "last_seen_utc": "2026-09-29T21:26:28.693487+00:00",
     "sample_titles": [
       "Battle invitations"
     ],
     "is_custom": false
   },
   {
-    "id": "auto_receive_2_broccoli_from_other__1790715534",
-    "title": "**Receive 2 🥦 broccoli from other players**",
-    "pattern": "\\*\\*Receive\\ 2\\ 🥦\\ broccoli\\ from\\ other\\ players\\*\\*",
+    "id": "auto_defeat_3_maste_1790717188",
+    "title": "Defeat 3 Maste",
+    "pattern": "Defeat\\ 3\\ Maste",
     "category": "wild_catch",
-    "description": "Auto-discovered PokéMeow quest: '**Receive 2 🥦 broccoli from other players**'",
+    "description": "Auto-discovered PokéMeow quest: 'Defeat 3 Maste'",
     "doable_auto": true,
     "is_impossible": false,
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 3,
-    "last_seen_utc": "2026-09-29T20:58:54.939224+00:00",
+    "times_seen": 2,
+    "last_seen_utc": "2026-09-29T21:26:28.816899+00:00",
     "sample_titles": [
-      "**Receive 2 🥦 broccoli from other players**"
+      "Defeat 3 Maste"
     ],
     "is_custom": false
   }
