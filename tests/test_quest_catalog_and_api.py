@@ -44,10 +44,10 @@ def test_quest_matching_and_resolution():
     assert res["battle_mode"] == "npc 210"
     assert res["category"] == "battle"
 
-    # 3. Master Challenger -> auto_complete, battle_mode: npc 210
+    # 3. Master Challenger -> auto_complete, battle_mode: master_challenger
     res = quest_catalog.resolve_quest_action("Defeat a Master Challenger")
     assert res["action"] == "auto_complete"
-    assert res["battle_mode"] == "npc 210"
+    assert res["battle_mode"] == "master_challenger"
 
     # 4. Defeat 3 NPCs -> auto_complete, battle_mode: npc 1
     res = quest_catalog.resolve_quest_action("Defeat 3 NPCs in battle")

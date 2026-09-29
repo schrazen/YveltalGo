@@ -10,8 +10,8 @@
     "action": "auto_reset",
     "default_action": "auto_reset",
     "battle_mode": null,
-    "times_seen": 27,
-    "last_seen_utc": "2026-09-29T17:44:30.870948+00:00",
+    "times_seen": 33,
+    "last_seen_utc": "2026-09-29T18:12:04.081066+00:00",
     "sample_titles": [
       "Complete the Mega Chamber",
       "Defeat 5 Mega Chambers"
@@ -29,10 +29,12 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "npc 210",
-    "times_seen": 11,
-    "last_seen_utc": "2026-09-29T17:44:29.968603+00:00",
+    "times_seen": 17,
+    "last_seen_utc": "2026-09-29T18:12:02.743066+00:00",
     "sample_titles": [
-      "Defeat a Basic Challenger"
+      "Defeat a Basic Challenger",
+      "⚔️ **Defeat a Basic Challenger**",
+      "⚔️ Defeat a Basic Challenger"
     ],
     "is_custom": false
   },
@@ -46,9 +48,9 @@
     "is_impossible": false,
     "action": "auto_complete",
     "default_action": "auto_complete",
-    "battle_mode": "npc 210",
-    "times_seen": 15,
-    "last_seen_utc": "2026-09-29T17:44:29.970715+00:00",
+    "battle_mode": "master_challenger",
+    "times_seen": 21,
+    "last_seen_utc": "2026-09-29T18:12:02.691080+00:00",
     "sample_titles": [
       "Defeat a Master Challenger!",
       "Defeat a Master Challenger"
@@ -65,7 +67,7 @@
     "is_impossible": false,
     "action": "auto_complete",
     "default_action": "auto_complete",
-    "battle_mode": "npc 210",
+    "battle_mode": "elite_challenger",
     "times_seen": 0,
     "last_seen_utc": "",
     "sample_titles": [],
@@ -81,7 +83,7 @@
     "is_impossible": false,
     "action": "auto_complete",
     "default_action": "auto_complete",
-    "battle_mode": "npc 210",
+    "battle_mode": "champion_challenger",
     "times_seen": 0,
     "last_seen_utc": "",
     "sample_titles": [],
@@ -98,8 +100,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "npc 210",
-    "times_seen": 16,
-    "last_seen_utc": "2026-09-29T17:44:32.198144+00:00",
+    "times_seen": 20,
+    "last_seen_utc": "2026-09-29T18:12:05.780698+00:00",
     "sample_titles": [
       "Defeat 2 Challengers in battle"
     ],
@@ -196,11 +198,12 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 21,
-    "last_seen_utc": "2026-09-29T17:44:32.197138+00:00",
+    "times_seen": 28,
+    "last_seen_utc": "2026-09-29T18:12:05.779697+00:00",
     "sample_titles": [
       "Encounter 500 Pokemon in the wild",
-      "Encounter 500 Pokemon in wild"
+      "Encounter 500 Pokemon in wild",
+      "<:dexcaught:667082939632189451> **Encounter 5 Pokemon in the wild**"
     ],
     "is_custom": false
   },
@@ -215,9 +218,11 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 0,
-    "last_seen_utc": "",
-    "sample_titles": [],
+    "times_seen": 3,
+    "last_seen_utc": "2026-09-29T18:12:02.740686+00:00",
+    "sample_titles": [
+      "Fish & Catch 25 Pokemon with a Pokelure active!"
+    ],
     "is_custom": false
   },
   {
@@ -327,8 +332,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 17,
-    "last_seen_utc": "2026-09-29T17:44:30.872948+00:00",
+    "times_seen": 27,
+    "last_seen_utc": "2026-09-29T18:12:04.083783+00:00",
     "sample_titles": [
       "Catch 20 Water-type Pokemon",
       "Catch 20 Grass Type Pokemo",
@@ -511,6 +516,24 @@
     "times_seen": 0,
     "last_seen_utc": "",
     "sample_titles": [],
+    "is_custom": false
+  },
+  {
+    "id": "auto_receive_1_lollipop_from_anothe_1790705269",
+    "title": "**receive 1 🍭 lollipop from another player**",
+    "pattern": "\\*\\*receive\\ 1\\ 🍭\\ lollipop\\ from\\ another\\ player\\*\\*",
+    "category": "wild_catch",
+    "description": "Auto-discovered PokéMeow quest: '**receive 1 🍭 lollipop from another player**'",
+    "doable_auto": true,
+    "is_impossible": false,
+    "action": "auto_complete",
+    "default_action": "auto_complete",
+    "battle_mode": null,
+    "times_seen": 1,
+    "last_seen_utc": "2026-09-29T18:07:49.240978+00:00",
+    "sample_titles": [
+      "**receive 1 🍭 lollipop from another player**"
+    ],
     "is_custom": false
   }
 ]

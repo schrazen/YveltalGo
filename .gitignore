@@ -80,3 +80,4 @@ PokeGrinder/something.txt
 # ==========================================
 .DS_Store
 Thumbs.db
+data/quest_catalog.json

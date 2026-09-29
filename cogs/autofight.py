@@ -1102,6 +1102,22 @@ class AutoFight(commands.Cog):
             return False
         return True
 
+    async def abort_battle_run(self, reason: str = "") -> None:
+        """Immediately aborts any active battle run, clearing active state and unpausing hunting/fishing."""
+        self.bot.autofight_active = False
+        self.bot.autofight_status = "Idle"
+        self._cancel_next_battle_task()
+        self._cancel_dispatch_watchdog()
+        self._run_target_battles = 0
+        self._run_completed_battles = 0
+        self._run_indefinite = False
+        self._log_event("battle_run_aborted", {"reason": reason})
+        await self._restore_other_automation()
+        try:
+            await self.bot.log()
+        except Exception:
+            pass
+
     def _schedule_dispatch_watchdog(self, channel) -> None:
         if self._run_target_battles <= 0 and not self._run_indefinite:
             return
@@ -1112,23 +1128,34 @@ class AutoFight(commands.Cog):
 
         async def _watchdog() -> None:
             try:
-                # Wait for first Pokemeow battle prompt activity after dispatch.
-                await asyncio.sleep(18.0)
+                # Wait up to 25 seconds for battle to initiate or engage.
+                for _ in range(5):
+                    await asyncio.sleep(5.0)
+                    if not bool(getattr(self.bot, "autofight_active", False)):
+                        return
+                    if self._run_target_battles <= 0 and not self._run_indefinite:
+                        return
+                    # Check if actual battle has engaged (enemy active or moves taken or recent click)
+                    if self._enemy_active_pokemon or self._active_pokemon or self._last_clicked_by_message:
+                        return
+
                 if not bool(getattr(self.bot, "autofight_active", False)):
                     return
-                if self._run_target_battles <= 0 and not self._run_indefinite:
-                    return
-                if scheduled_dispatch_at <= 0:
-                    return
 
-                activity_after_dispatch = float(self._last_battle_activity_at or 0.0) > scheduled_dispatch_at
-                if activity_after_dispatch:
-                    self._run_no_response_retries = 0
-                    return
-
-                # No response: retry with bounded attempts to avoid infinite spam.
-                self._run_no_response_retries += 1
-                if self._run_no_response_retries > 3:
+                # If still active after 25s with no battle underway, retry or abort cleanly
+                if self._run_no_response_retries < 2:
+                    self._run_no_response_retries += 1
+                    self._log_event(
+                        "dispatch_no_response_retry",
+                        {
+                            "retry": self._run_no_response_retries,
+                            "completed": self._run_completed_battles,
+                            "target": self._run_target_battles,
+                        },
+                    )
+                    await asyncio.sleep(randint(1800, 3500) / 1000)
+                    await self._dispatch_initial_fight(channel, self._battle_mode_args)
+                else:
                     self._log_event(
                         "dispatch_no_response_give_up",
                         {
@@ -1137,18 +1164,8 @@ class AutoFight(commands.Cog):
                             "mode": self._battle_mode_args,
                         },
                     )
-                    return
-
-                self._log_event(
-                    "dispatch_no_response_retry",
-                    {
-                        "retry": self._run_no_response_retries,
-                        "completed": self._run_completed_battles,
-                        "target": self._run_target_battles,
-                    },
-                )
-                await asyncio.sleep(randint(1800, 4200) / 1000)
-                await self._dispatch_initial_fight(channel, self._battle_mode_args)
+                    # CRITICAL FALLBACK: Abort run cleanly so hunting & fishing are unpaused!
+                    await self.abort_battle_run("watchdog_timeout_no_battle")
             except asyncio.CancelledError:
                 return
 
@@ -2982,8 +2999,11 @@ class AutoFight(commands.Cog):
         lowered = str(text or "").lower()
         return any(token in lowered for token in (
             "select a pokemon to send out",
+            "select a pokémon to send out",
             "select a pokemon switch button",
+            "select a pokémon switch button",
             "complete baton pass",
+            "baton pass",
         ))
 
     @staticmethod
@@ -3665,7 +3685,8 @@ class AutoFight(commands.Cog):
 
         return any(token in lowered for token in (
             "battle", "fight", "trainer", "npc", "attack", "move",
-            "select a pokemon switch button", "complete baton pass", "enemy id:",
+            "select a pokemon switch button", "select a pokémon switch button",
+            "complete baton pass", "enemy id:",
         ))
 
     async def _handle_message(self, message: Message, source: str) -> None:
@@ -4004,22 +4025,73 @@ class AutoFight(commands.Cog):
 
         combined_text = self._combine_message_text(message)
         message_id = int(getattr(message, "id", 0) or 0)
-        looks_like_battle = self._looks_like_battle_prompt(combined_text)
-        if looks_like_battle and message_id and message_id < int(self._latest_battle_message_id or 0):
-            self._log_event(
-                "skip_stale_battle_message",
-                {"source": source, "message_id": message_id, "latest_message_id": int(self._latest_battle_message_id or 0)},
-            )
-            return
-        if looks_like_battle and message_id > int(self._latest_battle_message_id or 0):
-            self._latest_battle_message_id = message_id
-
-        self._learn_team_moves_preview(combined_text)
         lowered_text = combined_text.lower()
 
+        # Check for PokéMeow battle dispatch rejection messages
+        rejection_match = None
+        for err_phrase in (
+            "cannot battle that npc as you have not received an invite",
+            "you cannot battle that npc",
+            "you are already in a battle",
+            "please enter an id to battle",
+            "invalid arguments! type /battle",
+            "need a battle ticket",
+            "defeat all gyms, elite fours",
+        ):
+            if err_phrase in lowered_text:
+                rejection_match = err_phrase
+                break
+
+        if rejection_match:
+            self._log_event(
+                "battle_dispatch_rejected",
+                {
+                    "reason": rejection_match,
+                    "preview": combined_text[:160],
+                    "mode": self._battle_mode_args,
+                },
+            )
+            self.bot.last_battle_error = {
+                "reason": rejection_match,
+                "mode": self._battle_mode_args,
+                "ts": time.time(),
+            }
+            if self._run_target_battles > 0:
+                await self.abort_battle_run(f"dispatch_rejected:{rejection_match}")
+            return
+
+        looks_like_battle = self._looks_like_battle_prompt(combined_text)
         enemy_id, moves_taken = self._extract_battle_progress(combined_text)
         switch_prompt = self._is_switch_prompt(combined_text)
         has_enabled_buttons = bool(self._enabled_buttons(message))
+
+        # Baton pass & switch prompt forwarder:
+        # If PokéMeow sent a text-only prompt "Select a Pokémon switch button to complete Baton pass."
+        # but the actual switch buttons are on the previous battle message, fetch and trigger the battle message!
+        if switch_prompt and not has_enabled_buttons and self._latest_battle_message_id:
+            try:
+                target_msg = await message.channel.fetch_message(self._latest_battle_message_id)
+                if self._enabled_buttons(target_msg):
+                    asyncio.create_task(self._handle_message(target_msg, source="switch_prompt_forward"))
+            except Exception:
+                pass
+
+        # Stale message check: Only drop as stale if this message has NO enabled buttons
+        # (an edit on the battle message adding switch/move buttons is NEVER stale!)
+        if looks_like_battle and message_id and message_id < int(self._latest_battle_message_id or 0):
+            if not has_enabled_buttons:
+                self._log_event(
+                    "skip_stale_battle_message",
+                    {"source": source, "message_id": message_id, "latest_message_id": int(self._latest_battle_message_id or 0)},
+                )
+                return
+
+        # Only advance latest battle message ID if this message actually has buttons or combat progress
+        if looks_like_battle and (has_enabled_buttons or enemy_id is not None or moves_taken is not None):
+            if message_id > int(self._latest_battle_message_id or 0):
+                self._latest_battle_message_id = message_id
+
+        self._learn_team_moves_preview(combined_text)
         self._sync_cloudflare_guard_status()
 
         cloudflare_guard_seconds = self._cloudflare_guard_remaining()

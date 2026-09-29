@@ -911,6 +911,7 @@ def get_runtime_snapshot() -> dict:
                     "autofight_channel_id": int(getattr(getattr(bot, "config", None), "autofight_channel_id", 0) or 0),
                     "impossible_keywords": list(getattr(getattr(bot, "config", None), "quest_impossible_keywords", ["mega chamber", "megachamber"])),
                 },
+                "challenge_data": dict(getattr(bot, "challenge_data", {}) or {}),
                 "day": day_payload,
                 # Keep legacy key for backward compatibility with existing UI consumers.
                 "session": day_payload,
@@ -1265,6 +1266,15 @@ async def runtime_action(action: str, payload: dict | None = None) -> dict:
             return {"ok": False, "error": "QuestManager cog is not loaded."}
         res = await quest_cog.evaluate_and_process_quests(source="dashboard_action")
         return {"ok": bool(res.get("ok", False)), "message": f"Quest evaluation: {res.get('action', res.get('reason', 'done'))} ({username})"}
+
+    if action == "sync_challenges":
+        quest_cog = bot.get_cog("QuestManager")
+        if quest_cog is None:
+            return {"ok": False, "error": "QuestManager cog is not loaded."}
+        ok = await quest_cog.sync_challenges()
+        if not ok:
+            return {"ok": False, "error": f"Failed dispatching ;challenges for {username} (check captcha, battle, or cooldown)."}
+        return {"ok": True, "message": f"Dispatched ;challenges to sync invitations ({username})."}
 
     if action == "toggle_quest_auto_reset":
         desired_state_raw = payload.get("enabled")

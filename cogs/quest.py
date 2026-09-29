@@ -11,6 +11,7 @@ from discord import Message, TextChannel
 from discord.ext import commands, tasks
 
 from modules.captcha_gate import is_captcha_active, is_in_battle
+from modules.challenge_manager import find_eligible_npc_for_quest, parse_challenges_text
 from modules.quest_catalog import quest_catalog
 from modules.runtime_file_log import info as runtime_info_log
 
@@ -24,6 +25,7 @@ class QuestManager(commands.Cog):
     2. Auto-resets quests configured for 'auto_reset' (e.g. Mega Chamber) using ';quest reset <id>' and auto-buys scrolls if needed.
     3. Auto-finishes doable battle quests configured for 'auto_complete' (e.g. Challengers, Trainer/NPC battles) via AutoFight.
     4. Enforces strict mutual exclusion between auto-battling and catching/fishing.
+    5. Syncs ;challenges and 'Battle invitations' to battle invited NPCs or auto-reset impossible Master challenges.
     """
 
     def __init__(self, bot: commands.Bot) -> None:
@@ -35,6 +37,8 @@ class QuestManager(commands.Cog):
         self._eval_lock = asyncio.Lock()
         self._pending_scroll_buy_for_slot: int | None = None
         self._last_scroll_buy_at: float = 0.0
+        self._syncing_challenges: bool = False
+        self._last_challenge_sync_at: float = 0.0
 
         if not hasattr(self.bot, "quest_data") or not isinstance(self.bot.quest_data, dict):
             self.bot.quest_data = {
@@ -44,11 +48,46 @@ class QuestManager(commands.Cog):
                 "last_updated_utc": "",
             }
 
+        if not hasattr(self.bot, "challenge_data") or not isinstance(self.bot.challenge_data, dict):
+            self.bot.challenge_data = {
+                "basic": [{"name": "trainer_steven", "id": 210, "tier": "basic"}],
+                "boss": [],
+                "master": [],
+                "invitations": [],
+                "has_no_invites": False,
+                "last_synced_utc": 0.0,
+            }
+
         # Start background loop
         self.quest_supervisor_loop.start()
 
     def cog_unload(self) -> None:
         self.quest_supervisor_loop.cancel()
+
+    async def sync_challenges(self, channel: TextChannel | None = None) -> bool:
+        """Dispatches ;challenges to check available challenges and active invitations."""
+        now = time.time()
+        last_sync = float(getattr(self, "_last_challenge_sync_at", 0.0) or 0.0)
+        if (now - last_sync) < 25.0:
+            return False
+        if is_captcha_active(self.bot) or is_in_battle(self.bot):
+            return False
+
+        target_channel = channel
+        if target_channel is None:
+            af_channel_id = int(getattr(self.config, "autofight_channel_id", 0) or 0)
+            if af_channel_id:
+                target_channel = getattr(self.bot, "autofight_channel", None) or self.bot.get_channel(af_channel_id)
+        if target_channel is None:
+            target_channel = getattr(self.bot, "hunting_channel", None)
+
+        if target_channel is None:
+            return False
+
+        self._last_challenge_sync_at = now
+        self._syncing_challenges = True
+        runtime_info_log("[QuestManager] Querying ;challenges to verify battle invitations...")
+        return await self._safe_send_text_or_slash(target_channel, ";challenges")
 
     def is_impossible_quest(self, title: str) -> bool:
         """Return True if the quest title matches impossible criteria or is configured for auto_reset."""
@@ -58,12 +97,19 @@ class QuestManager(commands.Cog):
 
         # 1. Check user/catalog rule resolution
         decision = quest_catalog.resolve_quest_action(raw)
-        if decision.get("action") == "auto_reset":
+        if decision.get("action") == "auto_reset" or decision.get("is_impossible", False):
             return True
+
+        # 2. Check challenge eligibility (e.g. Master/Boss challengers without active invitation)
+        ch_data = getattr(self.bot, "challenge_data", None)
+        is_doable, mode, reason = find_eligible_npc_for_quest(raw, ch_data)
+        if not is_doable and reason in ("no_master_invite", "no_boss_invite"):
+            return True
+
         if decision.get("action") in ("auto_complete", "ignore") and not decision.get("is_impossible", False):
             return False
 
-        # 2. Check config keywords fallback
+        # 3. Check config keywords fallback
         keywords = getattr(self.config, "quest_impossible_keywords", None)
         if not keywords or not isinstance(keywords, list):
             keywords = ["mega chamber", "megachamber"]
@@ -75,7 +121,8 @@ class QuestManager(commands.Cog):
 
     def classify_battle_quest(self, title: str) -> tuple[bool, str]:
         """Classify if a quest is a battle quest and return (is_battle, battle_mode).
-        Differentiates challenger battles from general NPC/trainer battles.
+        Uses challenge_manager to dynamically choose the correct NPC ID (e.g. Steven 210 for basic/general,
+        or invited Master/Boss NPC ID).
         """
         raw = str(title or "").lower().strip()
         if not raw or self.is_impossible_quest(raw):
@@ -86,24 +133,16 @@ class QuestManager(commands.Cog):
         if decision.get("action") != "auto_complete":
             return False, ""
 
-        if decision.get("battle_mode"):
-            return True, str(decision["battle_mode"])
+        # Determine via challenge_manager
+        ch_data = getattr(self.bot, "challenge_data", None)
+        is_doable, mode, reason = find_eligible_npc_for_quest(raw, ch_data)
+        if is_doable and mode:
+            return True, mode
 
-        if "challenger" in raw:
-            return True, "npc 210"
-
-        # General battle / trainer / NPC quests:
-        # e.g. "Defeat 5 Pokemon in battle", "Win 3 trainer battles", "Defeat 3 NPCs"
-        battle_patterns = [
-            r"\bdefeats?\b.*\b(battle|npcs?|trainers?|pokemon)\b",
-            r"\bwins?\b.*\b(battle|trainers?|npcs?)\b",
-            r"\bbattles?\b",
-            r"\bnpcs?\b",
-            r"\btrainers?\b",
-        ]
-        for pattern in battle_patterns:
-            if re.search(pattern, raw, re.IGNORECASE):
-                return True, "npc 1"
+        # Fallback to decision.get("battle_mode") if specified and valid
+        bm = decision.get("battle_mode")
+        if bm and str(bm) not in ("master_challenger", "elite_challenger", "champion_challenger"):
+            return True, str(bm)
 
         return False, ""
 
@@ -266,6 +305,19 @@ class QuestManager(commands.Cog):
                 except Exception:
                     pass
 
+            # Sync challenges if active quests contain a challenger quest and data is stale
+            has_challenger_quest = any(
+                "challenger" in str(q.get("title", "")).lower() for q in quests
+            )
+            ch_data = getattr(self.bot, "challenge_data", None) or {}
+            last_sync = float(ch_data.get("last_synced_utc", 0.0) or 0.0)
+            if has_challenger_quest and (now - last_sync) > 600.0:
+                af_channel_id = int(getattr(self.config, "autofight_channel_id", 0) or 0)
+                af_channel = getattr(self.bot, "autofight_channel", None) or (self.bot.get_channel(af_channel_id) if af_channel_id else None)
+                if af_channel and not is_captcha_active(self.bot) and not is_in_battle(self.bot):
+                    await self.sync_challenges(af_channel)
+                    await asyncio.sleep(2.0)
+
             # 1. Check for IMPOSSIBLE / AUTO-RESET quests first (Priority 1)
             if auto_reset_enabled:
                 for q in quests:
@@ -397,3 +449,76 @@ class QuestManager(commands.Cog):
                         quest_catalog.register_observed_quest(q_name)
                     except Exception:
                         pass
+
+        # 5. Challenge menu & battle invitations button handler
+        is_challenge_menu = any(
+            t in combined
+            for t in (
+                "available battling challenges",
+                "challenges in pokemeow",
+                "basic challenges have no requirements",
+            )
+        )
+        if is_challenge_menu:
+            # Look for "Battle invitations" button
+            for row in getattr(message, "components", []) or []:
+                for btn in getattr(row, "children", []) or []:
+                    lbl = str(getattr(btn, "label", "") or "").lower()
+                    cid = str(getattr(btn, "custom_id", "") or "").lower()
+                    emoji_str = str(getattr(btn, "emoji", "") or "").lower()
+                    if (
+                        "invitation" in lbl
+                        or "invitation" in cid
+                        or "✉" in emoji_str
+                        or "📩" in emoji_str
+                        or "mail" in emoji_str
+                        or "envelope" in emoji_str
+                    ):
+                        if not bool(getattr(btn, "disabled", False)):
+                            try:
+                                runtime_info_log("[QuestManager] Clicking 'Battle invitations' button on challenges message...")
+                                await btn.click()
+                            except Exception as exc:
+                                logger.debug(f"[QuestManager] Error clicking invitations button: {exc}")
+                        break
+
+        # 6. Parse challenge invitations or list
+        if any(
+            t in combined
+            for t in (
+                "battle invitations",
+                "active invitations",
+                "no battle invitations",
+                "you do not have any battle invitations",
+                "you have not received an invite",
+            )
+        ):
+            full_text = str(message.content or "")
+            for em in getattr(message, "embeds", []) or []:
+                full_text += "\n" + str(getattr(em, "title", "") or "")
+                full_text += "\n" + str(getattr(em, "description", "") or "")
+                for fld in getattr(em, "fields", []) or []:
+                    full_text += f"\n{getattr(fld, 'name', '')}: {getattr(fld, 'value', '')}"
+            parsed = parse_challenges_text(full_text)
+            existing = getattr(self.bot, "challenge_data", {}) or {}
+            if not parsed.get("basic") and existing.get("basic"):
+                parsed["basic"] = existing["basic"]
+            if not parsed.get("master") and existing.get("master"):
+                parsed["master"] = existing["master"]
+            if not parsed.get("boss") and existing.get("boss"):
+                parsed["boss"] = existing["boss"]
+
+            self.bot.challenge_data = parsed
+            if isinstance(getattr(self.bot, "quest_data", None), dict):
+                self.bot.quest_data["challenges"] = parsed
+            inv_count = len(parsed.get("invitations", []))
+            has_no_inv = parsed.get("has_no_invites", False)
+            runtime_info_log(
+                f"[QuestManager] Synced challenge invitations: {inv_count} active invitation(s) (no_invites={has_no_inv})."
+            )
+            self._syncing_challenges = False
+
+    @commands.Cog.listener()
+    async def on_message_edit(self, before: Message, after: Message) -> None:
+        """Handle edits on challenge messages or quest boards."""
+        await self.on_message(after)

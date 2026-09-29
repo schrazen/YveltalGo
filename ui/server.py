@@ -1389,6 +1389,41 @@ def scan_quest_logs_view():
         return jsonify({"ok": False, "error": str(exc)}), 500
 
 
+@app.get("/api/challenges")
+def get_challenges_view():
+    try:
+        data = {}
+        if _runtime_status_provider is not None:
+            status = _runtime_status_provider() or {}
+            bots = status.get("data", {}).get("bots", []) or []
+            for b in bots:
+                ch = b.get("challenge_data") or b.get("quest_data", {}).get("challenges")
+                if ch:
+                    data = ch
+                    break
+        return jsonify({
+            "ok": True,
+            "challenges": data,
+            "has_invitations": bool(data.get("invitations")),
+            "invitations_count": len(data.get("invitations", [])),
+            "last_synced_utc": data.get("last_synced_utc", 0.0),
+        })
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
+@app.post("/api/challenges/sync")
+def sync_challenges_view():
+    if _runtime_action_handler is None:
+        return jsonify({"ok": False, "error": "Runtime action handler unavailable."}), 400
+    try:
+        payload = request.get_json(silent=True) or {}
+        res = _runtime_action_handler("sync_challenges", payload)
+        return jsonify(res)
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
 @app.post("/api/runtime/action")
 def runtime_action():
     if _runtime_action_handler is None:
