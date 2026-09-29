@@ -250,6 +250,10 @@ def parse_pokemeow_response(
     lowered_full = full_haystack.lower()
 
     preview = _sanitize_text(haystack)[:300]
+    if not preview.strip():
+        # Discard empty or emoji-only messages (e.g. animated rod emojis/loading frames)
+        return None
+
     rarity = _extract_rarity_from_haystack(full_haystack)
     pokemon_name = _extract_pokemon_name_from_haystack(full_haystack)
 
@@ -537,6 +541,70 @@ def parse_pokemeow_response(
             "headline": "Berry garden status overview",
             "details": {
                 "module": "berry",
+                "preview": preview,
+            },
+            "raw_text": preview,
+        }
+
+    # 16a. Daily Streak Reward Claimed
+    if any(m in lowered for m in [
+        "daily streak",
+        "here are your daily",
+    ]) and any(w in lowered for w in ["streak", "pokecoin", "pokécoin"]):
+        return {
+            "category": "daily_reward_claimed",
+            "is_complication": False,
+            "headline": "Daily streak reward claimed",
+            "details": {
+                "module": "daily",
+                "preview": preview,
+            },
+            "raw_text": preview,
+        }
+
+    # 16b. Rod Cast In Progress (Waiting for bite)
+    if "cast a" in lowered and "rod into the water" in lowered:
+        return {
+            "category": "fish_cast_in_progress",
+            "is_complication": False,
+            "headline": "Fishing rod cast into water (in progress)",
+            "details": {
+                "module": "fishing",
+                "preview": preview,
+            },
+            "raw_text": preview,
+        }
+
+    # 16c. Patreon Perks & Benefits Overview
+    if "patreon benefits" in lowered or ("patreon" in lowered and "key benefits" in lowered):
+        return {
+            "category": "patreon_status",
+            "is_complication": False,
+            "headline": "Patreon benefits overview",
+            "details": {
+                "module": context_module or "general",
+                "preview": preview,
+            },
+            "raw_text": preview,
+        }
+
+    # 16d. Battle Challenges, Menus & Command Guidance
+    if any(m in lowered for m in [
+        "available battling challenges",
+        "command suggestions",
+        "league battles defeat all gyms",
+        "basic challenges have no requirements",
+        "type ;battle npc",
+        "invalid arguments! type /battle",
+        "please enter an id to battle",
+        "battle modes ;battle @user",
+    ]):
+        return {
+            "category": "battle_menu_info",
+            "is_complication": False,
+            "headline": "Battle challenge guide / command usage info",
+            "details": {
+                "module": "autofight",
                 "preview": preview,
             },
             "raw_text": preview,
@@ -888,6 +956,10 @@ def get_session_complications_summary(
             "lootbox_opened",
             "catchbot_status",
             "berry_garden_status",
+            "daily_reward_claimed",
+            "fish_cast_in_progress",
+            "patreon_status",
+            "battle_menu_info",
         }:
             special_events.append(ev)
 

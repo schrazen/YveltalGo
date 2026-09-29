@@ -38,16 +38,16 @@ def test_quest_matching_and_resolution():
     assert res["is_impossible"] is True
     assert res["category"] == "mega_chamber"
 
-    # 2. Basic Challenger -> auto_complete, battle_mode: challenger
+    # 2. Basic Challenger -> auto_complete, battle_mode: npc 210
     res = quest_catalog.resolve_quest_action("Defeat a Basic Challenger")
     assert res["action"] == "auto_complete"
-    assert res["battle_mode"] == "challenger"
+    assert res["battle_mode"] == "npc 210"
     assert res["category"] == "battle"
 
-    # 3. Master Challenger -> auto_complete, battle_mode: challenger
+    # 3. Master Challenger -> auto_complete, battle_mode: npc 210
     res = quest_catalog.resolve_quest_action("Defeat a Master Challenger")
     assert res["action"] == "auto_complete"
-    assert res["battle_mode"] == "challenger"
+    assert res["battle_mode"] == "npc 210"
 
     # 4. Defeat 3 NPCs -> auto_complete, battle_mode: npc 1
     res = quest_catalog.resolve_quest_action("Defeat 3 NPCs in battle")
@@ -89,7 +89,7 @@ def test_rule_toggle_and_custom_rules():
         pattern=r"\braid\s*boss\b",
         category="battle",
         action="auto_complete",
-        battle_mode="challenger",
+        battle_mode="npc 210",
     )
     assert custom is not None
     assert custom["is_custom"] is True
@@ -97,7 +97,7 @@ def test_rule_toggle_and_custom_rules():
     # Test custom rule matching
     res = quest_catalog.resolve_quest_action("Defeat the special Raid Boss")
     assert res["action"] == "auto_complete"
-    assert res["battle_mode"] == "challenger"
+    assert res["battle_mode"] == "npc 210"
     assert res["category"] == "battle"
 
     # Delete custom rule

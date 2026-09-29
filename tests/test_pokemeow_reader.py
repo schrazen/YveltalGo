@@ -117,7 +117,42 @@ def test_reader():
     res_fish = parse_pokemeow_response(m_fish_catch, context_module="fishing")
     assert res_fish["category"] != "missing_rod"
 
-    print("All 15 PokéMeow reader verification tests passed successfully!")
+    # 16. Daily streak reward claimed
+    m_daily = DummyMessage(content="schrazen is now on a 🏅 1 daily streak! 👻 Your daily streak of 2 has been reset! | Here are your daily 550 PokéCoins!")
+    res_daily = parse_pokemeow_response(m_daily, context_module="hunting")
+    assert res_daily["category"] == "daily_reward_claimed"
+    assert res_daily["is_complication"] is False
+
+    # 17. Rod cast in progress
+    m_rod_cast = DummyMessage(content="schrazen cast a Golden rod into the water... The current is strong!")
+    res_rod_cast = parse_pokemeow_response(m_rod_cast, context_module="hunting")
+    assert res_rod_cast["category"] == "fish_cast_in_progress"
+    assert res_rod_cast["is_complication"] is False
+
+    # 18. Patreon benefits overview
+    m_patreon = DummyMessage(content="You are currently Player Common Patreon Benefits ✨ Key Benefits - 🥷 Ninja perk: +5% catch rate")
+    res_patreon = parse_pokemeow_response(m_patreon, context_module="general")
+    assert res_patreon["category"] == "patreon_status"
+    assert res_patreon["is_complication"] is False
+
+    # 19. Battle challenge guidance / menu
+    m_battle_help = DummyMessage(content="Invalid arguments! Type /battle to view command usage for different battle modes. - ;b npc {npdid or name} for NPCs")
+    res_battle_help = parse_pokemeow_response(m_battle_help, context_module="autofight")
+    assert res_battle_help["category"] == "battle_menu_info"
+    assert res_battle_help["is_complication"] is False
+
+    m_challenges = DummyMessage(content="Available Battling Challenges in PokeMeow ## 🏟️ Gyms, Elite Four, Champions ;b league-progress")
+    res_challenges = parse_pokemeow_response(m_challenges, context_module="autofight")
+    assert res_challenges["category"] == "battle_menu_info"
+    assert res_challenges["is_complication"] is False
+
+    # 20. Empty or emoji-only loading frames return None
+    m_empty = DummyMessage(content="")
+    assert parse_pokemeow_response(m_empty) is None
+    m_emoji_only = DummyMessage(content="<:fishing_rod:1234567890>")
+    assert parse_pokemeow_response(m_emoji_only) is None
+
+    print("All 20 PokéMeow reader verification tests passed successfully!")
 
 
 if __name__ == "__main__":

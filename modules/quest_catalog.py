@@ -44,12 +44,12 @@ DEFAULT_QUEST_CATALOG: list[dict[str, Any]] = [
         "title": "Defeat a Basic Challenger",
         "pattern": r"\bdefeats?\b.*\bbasic challenger\b",
         "category": "battle",
-        "description": "Defeat a Basic tier Challenger NPC using ;battle challenger in the battle channel.",
+        "description": "Defeat Basic Challenger (Steven, ID 210) via ;battle npc 210.",
         "doable_auto": True,
         "is_impossible": False,
         "action": "auto_complete",
         "default_action": "auto_complete",
-        "battle_mode": "challenger",
+        "battle_mode": "npc 210",
         "times_seen": 0,
         "last_seen_utc": "",
         "sample_titles": [],
@@ -60,12 +60,12 @@ DEFAULT_QUEST_CATALOG: list[dict[str, Any]] = [
         "title": "Defeat a Master Challenger",
         "pattern": r"\bdefeats?\b.*\bmaster challenger\b",
         "category": "battle",
-        "description": "Defeat a Master tier Challenger NPC using ;battle challenger in the battle channel.",
+        "description": "Defeat Master tier Challenger NPC via ;battle npc in the battle channel.",
         "doable_auto": True,
         "is_impossible": False,
         "action": "auto_complete",
         "default_action": "auto_complete",
-        "battle_mode": "challenger",
+        "battle_mode": "npc 210",
         "times_seen": 0,
         "last_seen_utc": "",
         "sample_titles": [],
@@ -76,12 +76,12 @@ DEFAULT_QUEST_CATALOG: list[dict[str, Any]] = [
         "title": "Defeat an Elite Challenger",
         "pattern": r"\bdefeats?\b.*\belite challenger\b",
         "category": "battle",
-        "description": "Defeat an Elite tier Challenger NPC using ;battle challenger in the battle channel.",
+        "description": "Defeat Elite tier Challenger NPC via ;battle npc in the battle channel.",
         "doable_auto": True,
         "is_impossible": False,
         "action": "auto_complete",
         "default_action": "auto_complete",
-        "battle_mode": "challenger",
+        "battle_mode": "npc 210",
         "times_seen": 0,
         "last_seen_utc": "",
         "sample_titles": [],
@@ -92,12 +92,12 @@ DEFAULT_QUEST_CATALOG: list[dict[str, Any]] = [
         "title": "Defeat a Champion Challenger",
         "pattern": r"\bdefeats?\b.*\bchampion challenger\b",
         "category": "battle",
-        "description": "Defeat a Champion tier Challenger NPC using ;battle challenger in the battle channel.",
+        "description": "Defeat Champion tier Challenger NPC via ;battle npc in the battle channel.",
         "doable_auto": True,
         "is_impossible": False,
         "action": "auto_complete",
         "default_action": "auto_complete",
-        "battle_mode": "challenger",
+        "battle_mode": "npc 210",
         "times_seen": 0,
         "last_seen_utc": "",
         "sample_titles": [],
@@ -108,12 +108,12 @@ DEFAULT_QUEST_CATALOG: list[dict[str, Any]] = [
         "title": "Defeat Challengers in battle",
         "pattern": r"\bdefeats?\b.*\bchallengers?\b",
         "category": "battle",
-        "description": "Defeat one or more challengers in battle.",
+        "description": "Defeat one or more challengers via ;battle npc 210.",
         "doable_auto": True,
         "is_impossible": False,
         "action": "auto_complete",
         "default_action": "auto_complete",
-        "battle_mode": "challenger",
+        "battle_mode": "npc 210",
         "times_seen": 0,
         "last_seen_utc": "",
         "sample_titles": [],
@@ -124,12 +124,12 @@ DEFAULT_QUEST_CATALOG: list[dict[str, Any]] = [
         "title": "Win Challenger battles",
         "pattern": r"\bwins?\b.*\bchallengers?\b",
         "category": "battle",
-        "description": "Win one or more challenger battles.",
+        "description": "Win one or more challenger battles via ;battle npc 210.",
         "doable_auto": True,
         "is_impossible": False,
         "action": "auto_complete",
         "default_action": "auto_complete",
-        "battle_mode": "challenger",
+        "battle_mode": "npc 210",
         "times_seen": 0,
         "last_seen_utc": "",
         "sample_titles": [],
@@ -572,12 +572,16 @@ class QuestCatalog:
                             item_copy["times_seen"] = int(cur.get("times_seen", 0) or 0)
                             item_copy["last_seen_utc"] = cur.get("last_seen_utc", "")
                             item_copy["sample_titles"] = list(cur.get("sample_titles") or [])
+                            if item_copy.get("battle_mode") == "challenger":
+                                item_copy["battle_mode"] = "npc 210"
                             merged.append(item_copy)
                         else:
                             merged.append(dict(def_item))
 
                     # Retain any remaining items (e.g. user custom rules or auto-discovered rules)
                     for remaining_id, remaining_item in existing_by_id.items():
+                        if remaining_item.get("battle_mode") == "challenger":
+                            remaining_item["battle_mode"] = "npc 210"
                         merged.append(remaining_item)
 
                     self._items = merged

@@ -976,6 +976,16 @@ class AutoFight(commands.Cog):
                 normalized = mode[7:].strip()
             elif lowered.startswith("battle"):
                 normalized = mode[6:].strip()
+
+            # Normalization for PokéMeow challenge and NPC battle commands:
+            # PokéMeow has no ';battle challenger'. Challenges are fought via ';battle npc <id>'
+            # Basic Challenger (trainer_steven) is ID 210.
+            clean_mode = normalized.strip().lower()
+            if clean_mode in ("challenger", "challengers", "basic challenger", "basic_challenger"):
+                normalized = "npc 210"
+            elif clean_mode in ("npc", "trainer"):
+                normalized = "npc 1"
+
             cmd = ";battle" + (f" {normalized}" if normalized else "")
             try:
                 await channel.send(cmd)
@@ -1318,6 +1328,13 @@ class AutoFight(commands.Cog):
         for component in components:
             for child in getattr(component, "children", []) or []:
                 if bool(getattr(child, "disabled", False)):
+                    continue
+                cid = str(getattr(child, "custom_id", "") or "").lower()
+                lbl = str(getattr(child, "label", "") or "").lower()
+                # Exclude interactive menu or pagination buttons that are not battle moves/switches
+                if cid.startswith("challenges_") or any(nav in cid for nav in ("prev_page", "next_page", "help_")):
+                    continue
+                if any(nav_lbl in lbl for nav_lbl in ("challenges", "battle invitations")):
                     continue
                 buttons.append(child)
         return buttons
@@ -3630,6 +3647,22 @@ class AutoFight(commands.Cog):
     @staticmethod
     def _looks_like_battle_prompt(text: str) -> bool:
         lowered = str(text or "").lower()
+        # Suppress help texts, command guides, and challenge overview menus
+        if any(menu_token in lowered for menu_token in (
+            "available battling challenges",
+            "command suggestions",
+            "invalid arguments! type /battle",
+            "please enter an id to battle",
+            "league battles defeat all gyms",
+            "basic challenges have no requirements",
+            "boss challenges are locked",
+            "master challenges are unlocked",
+            "battle modes ;battle @user",
+            "type ;battle npc",
+            "to view your league progress",
+        )):
+            return False
+
         return any(token in lowered for token in (
             "battle", "fight", "trainer", "npc", "attack", "move",
             "select a pokemon switch button", "complete baton pass", "enemy id:",

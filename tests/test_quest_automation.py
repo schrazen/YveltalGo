@@ -101,11 +101,11 @@ def test_quest_classification():
     # Challenger
     is_battle, mode = qm.classify_battle_quest("Defeat 1 Challenger in battle")
     assert is_battle is True
-    assert mode == "challenger"
+    assert mode == "npc 210"
 
     is_battle, mode = qm.classify_battle_quest("Win 3 Challenger battles")
     assert is_battle is True
-    assert mode == "challenger"
+    assert mode == "npc 210"
 
     # General NPC / Trainer
     is_battle, mode = qm.classify_battle_quest("Defeat 5 Pokemon in battle")
@@ -173,12 +173,12 @@ async def test_quest_evaluation_and_actions():
     res = await qm.evaluate_and_process_quests(source="test")
     assert res.get("ok") is True
     assert res.get("action") == "started_autofight_quest"
-    assert res.get("mode") == "challenger"
+    assert res.get("mode") == "npc 210"
     assert res.get("battles") == 2
     # Check that AutoFight cog was triggered in the autobattle channel 1488006398255300658
     assert len(af_cog.started_runs) == 1
     assert af_cog.started_runs[0]["channel"] == 1488006398255300658
-    assert af_cog.started_runs[0]["mode"] == "challenger"
+    assert af_cog.started_runs[0]["mode"] == "npc 210"
     assert af_cog.started_runs[0]["count"] == 2
 
     # Check mutual exclusion: bot is now in battle, so hunting & fishing are paused

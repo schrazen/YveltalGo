@@ -90,7 +90,7 @@ class QuestManager(commands.Cog):
             return True, str(decision["battle_mode"])
 
         if "challenger" in raw:
-            return True, "challenger"
+            return True, "npc 210"
 
         # General battle / trainer / NPC quests:
         # e.g. "Defeat 5 Pokemon in battle", "Win 3 trainer battles", "Defeat 3 NPCs"
