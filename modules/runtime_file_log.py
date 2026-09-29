@@ -62,13 +62,13 @@ def log_exception(where: str, exc: BaseException) -> None:
 
 
 def tail_log_file(max_lines: int = 120, max_bytes: int = 64_000) -> list[str]:
+    from modules.file_utils import read_tail_bytes
+
     path = RUNTIME_LOG_PATH
     if not path.is_file():
         return []
     try:
-        raw = path.read_bytes()
-        if len(raw) > max_bytes:
-            raw = raw[-max_bytes:]
+        raw = read_tail_bytes(path, max_bytes=max_bytes)
         text = raw.decode("utf-8", errors="replace")
         lines = text.splitlines()
         return lines[-max_lines:] if len(lines) > max_lines else lines

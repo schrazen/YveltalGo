@@ -20,6 +20,7 @@ from modules.autofight_log import (
     clear_autofight_events,
     get_autofight_events,
 )
+from modules.file_utils import read_tail_lines
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 CONFIG_PATH = BASE_DIR / "config.json"
@@ -300,10 +301,9 @@ def _read_jsonl_rows(path: Path, limit: int = 100) -> list[dict[str, Any]]:
     if not path.exists():
         return []
 
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except Exception:
-        return []
+    # Fetch enough tail lines to satisfy the limit (accounting for blanks or invalid JSON)
+    fetch_lines = max(limit * 3, 200)
+    lines = read_tail_lines(path, max_lines=fetch_lines)
 
     rows: list[dict[str, Any]] = []
     for raw in reversed(lines):
