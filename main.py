@@ -24,6 +24,7 @@ from cogs.catchbot import CatchBot
 from cogs.autofight import AutoFight
 from cogs.limited_events import LimitedEvents
 from cogs.pokemeow_reader_cog import PokeMeowReaderCog
+from cogs.quest import QuestManager
 from modules.captcha_gate import is_captcha_active
 from modules.logging import logger
 from modules.stats_store import get_stats_key, load_stats_for_key, persist_bot_stats, ensure_day_mode_window
@@ -292,6 +293,8 @@ async def start_bots(token: str) -> None:
     account_catchbot = account.get("CatchBot", {}) if isinstance(account.get("CatchBot", {}), dict) else {}
     autofight_defaults = config.get("AutoFightDefaults", {})
     account_autofight = account.get("AutoFight", {}) if isinstance(account.get("AutoFight", {}), dict) else {}
+    quest_defaults = config.get("QuestDefaults", {}) if isinstance(config.get("QuestDefaults", {}), dict) else {}
+    account_quest = account.get("Quest", {}) if isinstance(account.get("Quest", {}), dict) else {}
     custom_delays = account.get("CustomDelays", {})
     hunting_channel_id = int(account.get("HuntingChannel", 0) or 0)
     fishing_channel_id = int(account.get("FishingChannel", 0) or 0)
@@ -428,6 +431,10 @@ async def start_bots(token: str) -> None:
         autofight_channel_id,
         str(account_autofight.get("OnCommand", autofight_defaults.get("OnCommand", ";autofight on"))),
         str(account_autofight.get("OffCommand", autofight_defaults.get("OffCommand", ";autofight off"))),
+        bool(account_quest.get("AutoResetEnabled", quest_defaults.get("AutoResetEnabled", True))),
+        bool(account_quest.get("AutoBattleQuestsEnabled", quest_defaults.get("AutoBattleQuestsEnabled", True))),
+        bool(account_quest.get("AutoBuyResetScroll", quest_defaults.get("AutoBuyResetScroll", True))),
+        list(account_quest.get("ImpossibleKeywords", quest_defaults.get("ImpossibleKeywords", ["mega chamber", "megachamber"]))),
     )
     bot.speed_mode_defaults = _capture_speed_defaults(bot)
     bot.humanizer = Humanizer(bot)
@@ -533,6 +540,7 @@ async def start_bots(token: str) -> None:
     await add_cog_compat(bot, Captcha(bot))
     await add_cog_compat(bot, Egg(bot))
     await add_cog_compat(bot, PokeMeowReaderCog(bot))
+    await add_cog_compat(bot, QuestManager(bot))
 
     runtime_info_log("start_bots: all cogs loaded; awaiting bot.start (Discord gateway) account_id=%s", account_id)
     try:
@@ -896,8 +904,13 @@ def get_runtime_snapshot() -> dict:
                     "active_count": 0,
                     "any_active": False,
                 },
-                "limited_events": dict(getattr(bot, "limited_events", {}) or {}),
-                "quests": dict(getattr(bot, "quest_data", {}) or {}),
+                "quests": {
+                    **dict(getattr(bot, "quest_data", {}) or {}),
+                    "auto_reset_enabled": bool(getattr(getattr(bot, "config", None), "quest_auto_reset_enabled", True)),
+                    "auto_battle_enabled": bool(getattr(getattr(bot, "config", None), "quest_auto_battle_enabled", True)),
+                    "autofight_channel_id": int(getattr(getattr(bot, "config", None), "autofight_channel_id", 0) or 0),
+                    "impossible_keywords": list(getattr(getattr(bot, "config", None), "quest_impossible_keywords", ["mega chamber", "megachamber"])),
+                },
                 "day": day_payload,
                 # Keep legacy key for backward compatibility with existing UI consumers.
                 "session": day_payload,
@@ -964,11 +977,14 @@ def get_runtime_snapshot() -> dict:
             }
         )
 
+    from modules.quest_catalog import quest_catalog
+
     return {
         "bots": snapshot,
         "bot_count": len(snapshot),
         "accounts": configured,
         "account_count": len(configured),
+        "quest_catalog_stats": quest_catalog.get_stats(),
     }
 
 
@@ -1228,6 +1244,49 @@ async def runtime_action(action: str, payload: dict | None = None) -> dict:
         if not ok:
             return {"ok": False, "error": "Quest request was skipped (debounce/cooldown or captcha active)."}
         return {"ok": True, "message": f"Quest info requested for {username}."}
+
+    if action == "reset_quest_slot":
+        slot_raw = payload.get("slot", 1)
+        try:
+            slot = int(slot_raw)
+        except Exception:
+            return {"ok": False, "error": f"Invalid slot number: {slot_raw}"}
+        quest_cog = bot.get_cog("QuestManager")
+        if quest_cog is None:
+            return {"ok": False, "error": "QuestManager cog is not loaded."}
+        ok = await quest_cog.reset_quest_slot(slot, reason="dashboard_action")
+        if not ok:
+            return {"ok": False, "error": f"Failed resetting slot #{slot} (check captcha or cooldown)."}
+        return {"ok": True, "message": f"Quest reset dispatched for slot #{slot} ({username})."}
+
+    if action == "trigger_battle_quest":
+        quest_cog = bot.get_cog("QuestManager")
+        if quest_cog is None:
+            return {"ok": False, "error": "QuestManager cog is not loaded."}
+        res = await quest_cog.evaluate_and_process_quests(source="dashboard_action")
+        return {"ok": bool(res.get("ok", False)), "message": f"Quest evaluation: {res.get('action', res.get('reason', 'done'))} ({username})"}
+
+    if action == "toggle_quest_auto_reset":
+        desired_state_raw = payload.get("enabled")
+        if desired_state_raw is None:
+            return {"ok": False, "error": "Missing 'enabled' for toggle action."}
+        enabled = bool(desired_state_raw)
+        bot.config.quest_auto_reset_enabled = enabled
+        ok, err = _update_account_config(token, lambda account: account.setdefault("Quest", {}).update({"AutoResetEnabled": bool(enabled)}))
+        if not ok:
+            return {"ok": False, "error": f"Updated runtime but failed to persist config: {err}"}
+        return {"ok": True, "message": f"Quest auto-reset {'enabled' if enabled else 'disabled'} for {username}."}
+
+    if action == "toggle_quest_auto_battle":
+        desired_state_raw = payload.get("enabled")
+        if desired_state_raw is None:
+            return {"ok": False, "error": "Missing 'enabled' for toggle action."}
+        enabled = bool(desired_state_raw)
+        bot.config.quest_auto_battle_enabled = enabled
+        ok, err = _update_account_config(token, lambda account: account.setdefault("Quest", {}).update({"AutoBattleQuestsEnabled": bool(enabled)}))
+        if not ok:
+            return {"ok": False, "error": f"Updated runtime but failed to persist config: {err}"}
+        return {"ok": True, "message": f"Quest auto-battle {'enabled' if enabled else 'disabled'} for {username}."}
 
     if action == "set_captcha_max_attempts":
         raw = payload.get("max_attempts")
@@ -1529,7 +1588,22 @@ async def runtime_action_legacy(action: str) -> dict:
         started = await start_all_bots()
         if started == 0:
             return {"ok": True, "message": "All configured bots are already running."}
-        return {"ok": True, "message": f"Starting {started} bot(s)."}
+    if action == "update_quest_rule":
+        quest_id = str((payload or {}).get("id", "")).strip()
+        rule_action = str((payload or {}).get("rule_action", "") or (payload or {}).get("action_type", "")).strip().lower()
+        from modules.quest_catalog import quest_catalog
+        ok = quest_catalog.update_rule(quest_id, rule_action)
+        return {"ok": ok, "message": f"Quest rule updated for '{quest_id}' -> {rule_action}", "stats": quest_catalog.get_stats()}
+
+    if action == "scan_quest_logs":
+        from modules.quest_catalog import quest_catalog
+        res = quest_catalog.scan_historical_logs()
+        return res
+
+    if action == "reset_quest_catalog_defaults":
+        from modules.quest_catalog import quest_catalog
+        quest_catalog.reset_defaults()
+        return {"ok": True, "message": "Quest catalog reset to defaults.", "stats": quest_catalog.get_stats()}
 
     return {"ok": False, "error": f"Unknown action '{action}'."}
 

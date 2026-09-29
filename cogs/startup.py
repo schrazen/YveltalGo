@@ -1,7 +1,7 @@
 import asyncio
 from time import time
 from typing import Tuple, Dict, Any
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TypeAlias
 
 from discord.ext import commands, tasks
@@ -73,6 +73,10 @@ class Config:
     autofight_channel_id: int
     autofight_on_command: str
     autofight_off_command: str
+    quest_auto_reset_enabled: bool = True
+    quest_auto_battle_enabled: bool = True
+    quest_auto_buy_scroll: bool = True
+    quest_impossible_keywords: list[str] = field(default_factory=lambda: ["mega chamber", "megachamber"])
 
 
 async def get_commands(bot: commands.Bot, channel_id: int) -> (

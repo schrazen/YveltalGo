@@ -63,6 +63,16 @@
     "OffCommand": ";autofight off",
     "_DESCRIPTION_": "AutoFight supports: ;autofight on/off/stop, ;autofight run <count> <mode> [EV|LEVEL], ;autofight once [mode] [EV|LEVEL]."
   },
+  "QuestDefaults": {
+    "AutoResetEnabled": true,
+    "AutoBattleQuestsEnabled": true,
+    "AutoBuyResetScroll": true,
+    "ImpossibleKeywords": [
+      "mega chamber",
+      "megachamber"
+    ],
+    "_DESCRIPTION_": "Auto-resets impossible quests (e.g. Mega Chamber) using ';quest reset <id>' and auto-finishes doable battle quests (Challengers/NPCs) in AutoFight channel."
+  },
 
   "CaptchaAlerts": {
     "CooldownSeconds": 10,
@@ -155,6 +165,15 @@
         "OnCommand": ";autofight on",
         "OffCommand": ";autofight off",
         "_DESCRIPTION_": "Per-account AutoFight channel and toggle commands. Runtime also supports run/once/stop commands in-channel."
+      },
+      "Quest": {
+        "AutoResetEnabled": true,
+        "AutoBattleQuestsEnabled": true,
+        "AutoBuyResetScroll": true,
+        "ImpossibleKeywords": [
+          "mega chamber",
+          "megachamber"
+        ]
       },
       "_OPTIONAL_DELAYS_": "Override global delays. Omit to use Delays section defaults."
     }

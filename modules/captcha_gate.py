@@ -63,11 +63,20 @@ def is_captcha_active(bot: Any, channel_id: int | None = None) -> bool:
     return False
 
 
-def can_dispatch_command(bot: Any, channel_id: int | None = None) -> bool:
-    """Check if commands are safe to dispatch (no captcha active, bot ready)."""
+def is_in_battle(bot: Any) -> bool:
+    """Return True if the bot is currently engaged in an active PokéMeow battle."""
+    if bot is None:
+        return False
+    return bool(getattr(bot, "autofight_active", False))
+
+
+def can_dispatch_command(bot: Any, channel_id: int | None = None, require_out_of_battle: bool = False) -> bool:
+    """Check if commands are safe to dispatch (no captcha active, bot ready, optionally not in battle)."""
     if bot is None:
         return False
     if is_captcha_active(bot, channel_id=channel_id):
+        return False
+    if require_out_of_battle and is_in_battle(bot):
         return False
     is_ready = getattr(bot, "is_ready", None)
     if callable(is_ready) and not is_ready():

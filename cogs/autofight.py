@@ -1029,6 +1029,66 @@ class AutoFight(commands.Cog):
             self._log_event("initial_dispatch_error", {"mode": "text", "command": ";battle", "error": str(exc)[:180]})
             return False
 
+    async def start_battle_run(
+        self,
+        channel: Any,
+        count: int = 1,
+        mode: str = "",
+        strategy: str = "standard",
+    ) -> bool:
+        """Programmatically initiates a target number of battles (e.g. for quest autocompletion).
+        Ensures hunting and fishing are safely paused throughout the battle sequence.
+        """
+        if channel is None:
+            return False
+        channel_id = getattr(channel, "id", None)
+        if is_captcha_active(self.bot, channel_id):
+            return False
+        if bool(getattr(self.bot, "autofight_active", False)):
+            return False
+
+        target_count = max(1, int(count))
+        battle_mode, strategy_mode = self._split_strategy_mode(mode)
+        if strategy != "standard" and strategy in _AUTOFIGHT_STRATEGY_MODES:
+            strategy_mode = strategy
+
+        self._log_event(
+            "programmatic_battle_run_start",
+            {"count": target_count, "mode": battle_mode[:120], "strategy": strategy_mode},
+        )
+        self.bot.autofight_active = True
+        label = battle_mode if battle_mode else "standard"
+        self.bot.autofight_status = f"Active (Quest: {target_count} {label})"
+        self.bot.autofight_guard_status = ""
+        self._pause_other_automation()
+        self._reset_battle_knowledge()
+        self._last_action_signature = ""
+        self._last_clicked_by_message.clear()
+        self._cancel_next_battle_task()
+        self._cancel_dispatch_watchdog()
+        self._run_target_battles = target_count
+        self._run_completed_battles = 0
+        self._run_indefinite = False
+        self._run_paused_state = None
+        self._arm_next_human_break()
+        self._counted_battle_end_message_ids.clear()
+        self._announced_battle_prompt_message_ids.clear()
+        self._battle_mode_args = str(battle_mode or "").strip()
+        self._battle_strategy_mode = (
+            strategy_mode if strategy_mode in _AUTOFIGHT_STRATEGY_MODES else "standard"
+        )
+        self._run_no_response_retries = 0
+        self._run_dispatch_error_retries = 0
+        await self.bot.log()
+        dispatched = await self._dispatch_initial_fight(channel, self._battle_mode_args)
+        if not dispatched:
+            self.bot.autofight_active = False
+            self.bot.autofight_status = "Idle"
+            await self._restore_other_automation()
+            await self.bot.log()
+            return False
+        return True
+
     def _schedule_dispatch_watchdog(self, channel) -> None:
         if self._run_target_battles <= 0 and not self._run_indefinite:
             return

@@ -9,7 +9,7 @@ from typing import Any
 from discord import Message
 from discord.ext import commands, tasks
 
-from modules.captcha_gate import is_captcha_active
+from modules.captcha_gate import is_captcha_active, is_in_battle
 
 POKEMEOW_APP_ID = 664508672713424926
 
@@ -267,8 +267,8 @@ class LimitedEvents(commands.Cog):
         timeout_seconds: float = 45.0,
     ) -> tuple[bool, str, str, str]:
         for attempt in range(2):
-            if is_captcha_active(self.bot):
-                return False, "", "", f"Aborted {command_text}: captcha is active"
+            if is_captcha_active(self.bot) or is_in_battle(self.bot):
+                return False, "", "", f"Aborted {command_text}: captcha is active or bot is in battle"
 
             sent_at = time.time()
             try:

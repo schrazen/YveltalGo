@@ -26,7 +26,7 @@ from modules.cloudflare_indicator import is_cloudflare_1015_error, notify_cloudf
 from modules.rare_catch_log import record_rare_catch_event
 from modules.retrieved_item_log import record_retrieved_item_event
 from modules.pokemeow_reader import inspect_and_record_pokemeow_message
-from modules.captcha_gate import is_captcha_active
+from modules.captcha_gate import is_captcha_active, is_in_battle
 
 POKEMEOW_APP_ID = 664508672713424926
 
@@ -584,7 +584,12 @@ class Hunting(commands.Cog):
         Dispatch pokemon hunt only if no captcha is currently active.
         This prevents dispatch during captcha windows even if the flag changes during sleep phases.
         """
-        if is_captcha_active(self.bot, self.config.hunting_channel_id) or self.bot.pause_hunting or self.bot.limit:
+        if (
+            is_captcha_active(self.bot, self.config.hunting_channel_id)
+            or self.bot.pause_hunting
+            or self.bot.limit
+            or is_in_battle(self.bot)
+        ):
             return
         try:
             channel = self.bot.get_channel(self.config.hunting_channel_id)
