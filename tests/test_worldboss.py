@@ -72,6 +72,19 @@ class TestWorldBoss(unittest.TestCase):
         self.assertIsNotNone(btn)
         self.assertEqual(btn.label, "Mega Gardevoir")
 
+    def test_decider_danger_hp_and_reset(self):
+        # Verify WorldBossActionDecider accepts danger_hp_percent keyword
+        decider = WorldBossActionDecider(danger_hp_percent=50.0)
+        self.assertEqual(decider.danger_hp_percent, 50.0)
+
+        decider.update_context("Gigantamax-Venusaur", "Smeargle")
+        self.assertEqual(decider.current_boss_name, "Gigantamax-Venusaur")
+
+        # Test reset
+        decider.reset()
+        self.assertEqual(decider.current_boss_name, "")
+        self.assertEqual(decider.active_pokemon_name, "")
+
 
 if __name__ == "__main__":
     unittest.main()

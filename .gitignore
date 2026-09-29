@@ -56,8 +56,13 @@ stats.json
 logs/
 **/logs/
 anti_detect_log*
-autofight*
-worldboss*
+autofight*.log
+autofight*.json*
+worldboss*.log
+worldboss*.json*
+!modules/worldboss_strategies.py
+!cogs/worldboss.py
+!cogs/autofight.py
 rare_catches*
 retrieved_items*
 

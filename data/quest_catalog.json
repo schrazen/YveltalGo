@@ -10,8 +10,8 @@
     "action": "auto_reset",
     "default_action": "auto_reset",
     "battle_mode": null,
-    "times_seen": 93,
-    "last_seen_utc": "2026-09-29T21:42:37.684513+00:00",
+    "times_seen": 82,
+    "last_seen_utc": "2026-09-29T21:26:28.936303+00:00",
     "sample_titles": [
       "Complete the Mega Chamber",
       "Defeat 5 Mega Chambers",
@@ -32,8 +32,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "npc 210",
-    "times_seen": 41,
-    "last_seen_utc": "2026-09-29T21:42:29.505830+00:00",
+    "times_seen": 37,
+    "last_seen_utc": "2026-09-29T21:26:28.985784+00:00",
     "sample_titles": [
       "Defeat a Basic Challenger",
       "⚔️ **Defeat a Basic Challenger**",
@@ -52,8 +52,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "master_challenger",
-    "times_seen": 52,
-    "last_seen_utc": "2026-09-29T21:42:29.487805+00:00",
+    "times_seen": 48,
+    "last_seen_utc": "2026-09-29T21:26:28.898041+00:00",
     "sample_titles": [
       "Defeat a Master Challenger!",
       "Defeat a Master Challenger"
@@ -103,8 +103,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "npc 210",
-    "times_seen": 84,
-    "last_seen_utc": "2026-09-29T21:42:39.012091+00:00",
+    "times_seen": 73,
+    "last_seen_utc": "2026-09-29T21:33:19.798675+00:00",
     "sample_titles": [
       "Defeat 2 Challengers in battle",
       "Defeat 3 Boss Challengers!",
@@ -205,8 +205,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 52,
-    "last_seen_utc": "2026-09-29T21:42:39.011085+00:00",
+    "times_seen": 48,
+    "last_seen_utc": "2026-09-29T21:26:28.940881+00:00",
     "sample_titles": [
       "Encounter 500 Pokemon in the wild",
       "Encounter 500 Pokemon in wild",
@@ -226,8 +226,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 54,
-    "last_seen_utc": "2026-09-29T21:42:29.499322+00:00",
+    "times_seen": 46,
+    "last_seen_utc": "2026-09-29T21:26:28.983772+00:00",
     "sample_titles": [
       "Fish & Catch 25 Pokemon with a Pokelure active!",
       "Fish & Catch 25 Pokemon with a Pokelure active > 💰 R",
@@ -265,8 +265,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 17,
-    "last_seen_utc": "2026-09-29T21:42:29.453205+00:00",
+    "times_seen": 33,
+    "last_seen_utc": "2026-09-29T22:03:41.938944+00:00",
     "sample_titles": [
       "Catch 15 Uncommon Pokemon",
       "Catch 15 Uncommon Pokemon!"
@@ -284,10 +284,11 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 2,
-    "last_seen_utc": "2026-09-29T18:25:36.059891+00:00",
+    "times_seen": 4,
+    "last_seen_utc": "2026-09-29T21:55:12.879550+00:00",
     "sample_titles": [
-      "<:dexcaught:667082939632189451> **Catch 5 <:Rare:667123659822989323> Rare Pokemon**"
+      "<:dexcaught:667082939632189451> **Catch 5 <:Rare:667123659822989323> Rare Pokemon**",
+      "<:dexcaught:667082939632189451> **Catch 2 <:SuperRare:667124003793797120> Super Rare Pokemon**"
     ],
     "is_custom": false
   },
@@ -350,8 +351,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 110,
-    "last_seen_utc": "2026-09-29T21:42:37.686017+00:00",
+    "times_seen": 123,
+    "last_seen_utc": "2026-09-29T22:03:41.936337+00:00",
     "sample_titles": [
       "Catch 20 Water-type Pokemon",
       "Catch 20 Grass Type Pokemo",
@@ -566,8 +567,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 22,
-    "last_seen_utc": "2026-09-29T21:42:29.461725+00:00",
+    "times_seen": 20,
+    "last_seen_utc": "2026-09-29T21:26:28.770593+00:00",
     "sample_titles": [
       "Defeat 3 Boss Ch"
     ],
@@ -620,8 +621,8 @@
     "action": "auto_reset",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 2,
-    "last_seen_utc": "2026-09-29T19:00:58.453557+00:00",
+    "times_seen": 4,
+    "last_seen_utc": "2026-09-29T21:48:45.287945+00:00",
     "sample_titles": [
       "**Receive 1 🍫 chocolate bar from another player**"
     ],
@@ -638,8 +639,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "npc 1",
-    "times_seen": 10,
-    "last_seen_utc": "2026-09-29T21:42:29.451308+00:00",
+    "times_seen": 8,
+    "last_seen_utc": "2026-09-29T21:26:28.693487+00:00",
     "sample_titles": [
       "Battle invitations"
     ],
@@ -656,8 +657,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 4,
-    "last_seen_utc": "2026-09-29T21:42:29.464731+00:00",
+    "times_seen": 2,
+    "last_seen_utc": "2026-09-29T21:26:28.816899+00:00",
     "sample_titles": [
       "Defeat 3 Maste"
     ],
@@ -674,8 +675,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 22,
-    "last_seen_utc": "2026-09-29T21:42:29.504325+00:00",
+    "times_seen": 36,
+    "last_seen_utc": "2026-09-29T22:03:41.937331+00:00",
     "sample_titles": [
       "Receive",
       "Receive 2 🍬 🍭 🍫 or 🥦 from other players!",
