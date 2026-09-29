@@ -257,7 +257,7 @@ async def safe_request_quest_info(
         return False
 
     channel_id = getattr(channel, "id", 0)
-    if is_captcha_active(bot, channel_id):
+    if is_captcha_active(bot, channel_id) or bool(getattr(bot, "world_boss_active", False)) or bool(getattr(bot, "pause_hunting", False)):
         return False
 
     now = time()
@@ -271,7 +271,7 @@ async def safe_request_quest_info(
     delay = 1.5 + (randint(0, suspicion) / 1000.0)
     await asyncio.sleep(delay)
 
-    if is_captcha_active(bot, channel_id):
+    if is_captcha_active(bot, channel_id) or bool(getattr(bot, "world_boss_active", False)) or bool(getattr(bot, "pause_hunting", False)):
         return False
 
     cmd = (command_map or {}).get("quest info") if isinstance(command_map, dict) else None

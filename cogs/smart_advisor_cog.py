@@ -162,10 +162,10 @@ class SmartAdvisorCog(commands.Cog):
 
             # Phase 1: Local Lock Audit (aggressive unsticking)
             # -------------------------------------------------------------
-            # Auto-clear orphaned WorldBoss lock if idle for > 40s
+            # Auto-clear orphaned WorldBoss lock if idle for > 45s
             if bool(getattr(self.bot, "world_boss_active", False)):
                 wb_elapsed = now - float(getattr(self.bot, "last_wb_action", 0.0) or 0.0)
-                if wb_elapsed > 40.0:
+                if wb_elapsed > 45.0:
                     logger.warning("SmartAdvisor: Releasing stuck world_boss_active lock (%0.1fs elapsed)", wb_elapsed)
                     self.bot.world_boss_active = False
                     self.bot.pause_hunting = False

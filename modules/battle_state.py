@@ -99,6 +99,10 @@ def _extract_action_buttons(message: Message, known_team_names: list[str] | None
                 continue
             key = f"button_{raw_custom_id}"
 
+        # Filter out forfeit / cancel / flee buttons completely
+        if any(f in key for f in ["forfeit", "cancel", "surrender", "flee"]):
+            continue
+
         is_known_switch_target = any(target and target in key for target in known_switch_targets)
         if "switch" in key or "send" in key or is_known_switch_target:
             switch_buttons[key] = child
@@ -110,6 +114,20 @@ def _extract_action_buttons(message: Message, known_team_names: list[str] | None
 
 
 def _extract_active_pokemon(raw_text: str, known_names: list[str]) -> str | None:
+    # 1. Check for PokéMeow team status block: "<Name> <CurrHP> / <MaxHP>"
+    team_matches = re.findall(
+        r"([a-zA-Z0-9\- ]+?)\s+(\d+)\s*/\s*(\d+)",
+        raw_text,
+    )
+    for name_candidate, curr_hp, max_hp in team_matches:
+        clean_cand = name_candidate.strip()
+        clean_cand = re.sub(r"^[^a-zA-Z0-9]+", "", clean_cand).strip()
+        for kn in known_names:
+            if kn.lower() == clean_cand.lower() or kn.lower() in clean_cand.lower():
+                if int(curr_hp) > 0:
+                    return kn
+
+    # 2. Fallback to standard check
     lowered = normalize(raw_text)
     for name in known_names:
         if normalize(name) in lowered:

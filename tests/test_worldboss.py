@@ -228,6 +228,163 @@ class TestWorldBoss(unittest.TestCase):
             if temp_history.exists():
                 temp_history.unlink()
 
+    def test_mega_mewtwo_y_cheese_combos_and_decider(self):
+        from modules.worldboss_strategies import (
+            MEW_TWO_Y_CHEESE_COMBOS,
+            WorldBossActionDecider,
+            get_boss_strategy,
+        )
+
+        # 1. Verify Mega Mewtwo Y combo presets
+        self.assertIn("double_pass_meta", MEW_TWO_Y_CHEESE_COMBOS)
+        self.assertIn("volt_absorb_electric_pass", MEW_TWO_Y_CHEESE_COMBOS)
+        self.assertIn("psychic_terrain_expanding", MEW_TWO_Y_CHEESE_COMBOS)
+        self.assertIn("solo_mmy_self_setup", MEW_TWO_Y_CHEESE_COMBOS)
+
+        meta_combo = MEW_TWO_Y_CHEESE_COMBOS["double_pass_meta"]
+        self.assertEqual(meta_combo.slots, ["Swoobat", "Smeargle", "Mega-Mewtwo-Y"])
+        self.assertEqual(meta_combo.held_items["Mega-Mewtwo-Y"], "Twisted Spoon")
+
+        # 2. Test Decider recognizing Mega Mewtwo Y as sweeper
+        decider = WorldBossActionDecider()
+        decider.update_context("Gigantamax-Pikachu", "Mega-Mewtwo-Y")
+
+        moves = [
+            DummyButton("Stored Power", "move:1"),
+            DummyButton("Psychic Terrain", "move:2"),
+            DummyButton("Aura Sphere", "move:3"),
+            DummyButton("Recover", "move:4"),
+        ]
+        switches = [
+            DummyButton("Swoobat", "switch:swoobat"),
+            DummyButton("Smeargle", "switch:smeargle"),
+        ]
+
+        # In battle as Mega Mewtwo Y -> executes Stored Power
+        btn, action, reason = decider.decide_action(moves, switches)
+        self.assertIsNotNone(btn)
+        self.assertEqual(btn.label, "Stored Power")
+        self.assertEqual(reason, "sweeper_nuke")
+
+        # Baton pass switch prompt -> prefers Mega Mewtwo Y even on Venusaur
+        decider.update_context("Gigantamax-Venusaur", "Smeargle")
+        bp_switches = [
+            DummyButton("Swoobat", "switch:swoobat"),
+            DummyButton("Mega-Mewtwo-Y", "switch:mmy"),
+        ]
+        btn_bp, action_bp, _ = decider.decide_action([], bp_switches, is_baton_pass_prompt=True)
+        self.assertIsNotNone(btn_bp)
+        self.assertEqual(btn_bp.label, "Mega-Mewtwo-Y")
+
+    def test_worldboss_team_builder_and_commands(self):
+        from modules.worldboss_strategies import (
+            MEW_TWO_Y_CHEESE_COMBOS,
+            WorldBossTeamBuilder,
+        )
+
+        # 1. Presets retrieval
+        presets = WorldBossTeamBuilder.get_presets_for_boss("Gigantamax-Pikachu")
+        self.assertGreaterEqual(len(presets), 1)
+
+        # 2. Team recommendations: Full inventory
+        rec_preset, reason = WorldBossTeamBuilder.recommend_team(
+            "Gigantamax-Pikachu",
+            owned_pokemon=["Jolteon", "Smeargle", "Mega-Mewtwo-Y"],
+        )
+        self.assertIn("Jolteon", rec_preset.slots)
+        self.assertIn("Mega-Mewtwo-Y", rec_preset.slots)
+
+        # 3. Hybrid recommendation: Player only has Swoobat + Mega Mewtwo Y (no Smeargle)
+        hybrid_preset, hybrid_reason = WorldBossTeamBuilder.recommend_team(
+            "Gigantamax-Venusaur",
+            owned_pokemon=["Swoobat", "Mega-Mewtwo-Y"],
+        )
+        self.assertIn("Swoobat", hybrid_preset.slots)
+        self.assertIn("Mega-Mewtwo-Y", hybrid_preset.slots)
+        self.assertEqual(hybrid_preset.archetype, "stored_power")
+
+        # 4. Command Generation
+        cmds = WorldBossTeamBuilder.generate_pokemeow_commands(MEW_TWO_Y_CHEESE_COMBOS["double_pass_meta"])
+        self.assertIn(";team set Swoobat Smeargle Mega-Mewtwo-Y", cmds)
+        self.assertIn(";team set 1 Swoobat", cmds)
+        self.assertIn(";team set 3 Mega-Mewtwo-Y", cmds)
+        self.assertIn(";item hold Twisted Spoon Mega-Mewtwo-Y", cmds)
+
+        # 5. Formatted Guide text
+        guide = WorldBossTeamBuilder.format_team_guide("Gigantamax-Pikachu")
+        self.assertIn("World Boss Comp Guide", guide)
+        self.assertIn(";team set", guide)
+
+    def test_kingler_live_battle_scenario_with_dict_and_emojis(self):
+        from modules.battle_state import _extract_active_pokemon
+        from modules.worldboss_strategies import WorldBossActionDecider
+
+        raw_embed_text = (
+            "Gigantamax-Kingler Challenge\n"
+            "Kingler: 10,000,000 / 10,000,000 HP\n"
+            "Reward potential: [0/5]\n"
+            "20,000 DMG until next threshold\n\n"
+            "Kingler stares intensely at you...\n\n"
+            "⚔️ Yashi's Team\n"
+            "Mew 454 / 454 • 💥 DMG: 0\n"
+            "Malamar 415 / 415 🥦 • 💥 DMG: 0\n"
+            "Mega Mewtwo Y 407 / 407 🪨 • 💥 DMG: 0\n\n"
+            "Gigantamax-Kingler\n"
+            "Players in battle: 24 • Your total DMG dealt: 0\n"
+            "Kingler health: 10,000,000 / 10,000,000 HP\n"
+        )
+        known_team = ["Mega Mewtwo Y", "Mega-Mewtwo-Y", "Mew", "Malamar", "Smeargle"]
+
+        # 1. Verify active pokemon is extracted as Mew (NOT Mega Mewtwo Y)
+        active = _extract_active_pokemon(raw_embed_text, known_team)
+        self.assertEqual(active, "Mew")
+
+        # 2. Simulate dictionary of buttons as returned by parse_battle_state
+        buttons_dict = {
+            "⚡ eerie impulse": DummyButton("⚡ Eerie impulse", "move:eerie"),
+            "focus energy": DummyButton("Focus energy", "move:focus"),
+            "roost": DummyButton("Roost", "move:roost"),
+            "baton pass": DummyButton("Baton pass", "move:bp"),
+            "forfeit": DummyButton("Forfeit", "util:forfeit"),
+            "heal": DummyButton("Heal", "util:heal"),
+        }
+        switches_dict = {
+            "malamar": DummyButton("Malamar", "switch:malamar"),
+            "mega mewtwo y": DummyButton("Mega Mewtwo Y", "switch:mmy"),
+        }
+
+        decider = WorldBossActionDecider()
+        decider.update_context("Gigantamax-Kingler", active)
+
+        # 3. Decide action with dictionary input: should pick Eerie impulse (setup move)
+        btn, action, reason = decider.decide_action(
+            move_buttons=buttons_dict,
+            switch_buttons=switches_dict,
+            ally_hp_percent=100.0,
+        )
+        self.assertIsNotNone(btn)
+        self.assertEqual(btn.label, "⚡ Eerie impulse")
+        self.assertEqual(reason, "stat_buff_sequence")
+
+        # 4. Low HP emergency: should pick Roost
+        btn_heal, action_heal, reason_heal = decider.decide_action(
+            move_buttons=buttons_dict,
+            switch_buttons=switches_dict,
+            ally_hp_percent=20.0,
+        )
+        self.assertIsNotNone(btn_heal)
+        self.assertEqual(btn_heal.label, "Roost")
+        self.assertEqual(reason_heal, "low_hp_emergency_heal")
+
+        # 5. Baton pass prompt: should pick Mega Mewtwo Y
+        btn_bp, action_bp, reason_bp = decider.decide_action(
+            move_buttons=buttons_dict,
+            switch_buttons=switches_dict,
+            is_baton_pass_prompt=True,
+        )
+        self.assertIsNotNone(btn_bp)
+        self.assertEqual(btn_bp.label, "Mega Mewtwo Y")
+
 
 if __name__ == "__main__":
     unittest.main()

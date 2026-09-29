@@ -23,6 +23,7 @@ from modules.worldboss_estimator import (
 from modules.worldboss_strategies import (
     WORLD_BOSS_STRATEGIES,
     WorldBossActionDecider,
+    WorldBossTeamBuilder,
     get_boss_strategy,
 )
 from modules.smart_advisor import smart_advisor
@@ -177,6 +178,10 @@ class WorldBoss(commands.Cog):
             return "off"
         if lowered in {";wb auto", ";wb auto status", ";wba status", ";worldboss status"}:
             return "status"
+        if lowered.startswith(";wb team") or lowered.startswith(";wba team") or lowered.startswith(";wb comp"):
+            return "team"
+        if lowered.startswith(";wb equip") or lowered.startswith(";wba equip"):
+            return "equip"
         return ""
 
     @staticmethod
@@ -486,6 +491,27 @@ class WorldBoss(commands.Cog):
                     f"Estimation: {est_summary}"
                 )
                 return
+            if toggle == "team":
+                parts = message.content.strip().split(maxsplit=2)
+                target_boss = parts[2].strip() if len(parts) > 2 else (self.last_enemy_name or "Gigantamax-Pikachu")
+                guide = WorldBossTeamBuilder.format_team_guide(target_boss)
+                await message.channel.send(guide)
+                return
+            if toggle == "equip":
+                parts = message.content.strip().split(maxsplit=2)
+                target_boss = parts[2].strip() if len(parts) > 2 else (self.last_enemy_name or "Gigantamax-Pikachu")
+                preset, _ = WorldBossTeamBuilder.recommend_team(target_boss)
+                cmds = WorldBossTeamBuilder.generate_pokemeow_commands(preset)
+                if cmds and not self.config.wb_dry_run:
+                    # Send full team set command
+                    await message.channel.send(cmds[0])
+                    for c in cmds:
+                        if "item hold" in c:
+                            await asyncio.sleep(1.5)
+                            await message.channel.send(c)
+                elif self.config.wb_dry_run:
+                    await message.channel.send(f"[Dry Run] Would execute:\n" + "\n".join(cmds))
+                return
 
         if not bool(getattr(self.config, "world_boss_enabled", False)):
             return
@@ -580,6 +606,7 @@ class WorldBoss(commands.Cog):
             "Smeargle", "Shiny Smeargle", "Mega-Gardevoir", "Mega Gardevoir",
             "Swoobat", "Necrozma-Ultra", "Necrozma Ultra", "Mega-Mewtwo-Y", "Mega Mewtwo Y",
             "Poliwrath", "Mew", "Shuckle", "Vaporeon", "Gliscor",
+            "Jolteon", "Lanturn", "Tapu Lele", "Tapu-Lele", "Krookodile", "Sylveon", "Corviknight", "Blaziken",
             "Incineroar", "Umbreon", "Bellossom", "Gmax-Inteleon", "Gmax-Charizard",
         ]
         state = parse_battle_state(actionable_message, all_known_names)
@@ -616,16 +643,25 @@ class WorldBoss(commands.Cog):
 
             is_baton_pass_prompt = "complete baton pass" in message_blob
 
+            move_list = list(state.move_buttons.values()) if isinstance(state.move_buttons, dict) else list(state.move_buttons or [])
+            switch_list = list(state.switch_buttons.values()) if isinstance(state.switch_buttons, dict) else list(state.switch_buttons or [])
+
+            # Filter out forfeit / cancel buttons completely
+            move_list = [
+                b for b in move_list
+                if not any(token in (str(getattr(b, "label", "") or "") + " " + str(getattr(b, "custom_id", "") or "")).lower() for token in ["forfeit", "cancel", "run", "surrender"])
+            ]
+
             button, action_name, reason = self.decider.decide_action(
-                move_buttons=state.move_buttons,
-                switch_buttons=state.switch_buttons,
+                move_buttons=move_list,
+                switch_buttons=switch_list,
                 ally_hp_percent=state.ally_hp_percent,
                 is_baton_pass_prompt=is_baton_pass_prompt,
             )
 
-            if button is None and (state.move_buttons or state.switch_buttons):
-                move_names = [str(getattr(b, "label", "") or getattr(b, "custom_id", "")) for b in state.move_buttons]
-                switch_names = [str(getattr(b, "label", "") or getattr(b, "custom_id", "")) for b in state.switch_buttons]
+            if button is None and (move_list or switch_list):
+                move_names = [str(getattr(b, "label", "") or getattr(b, "custom_id", "")) for b in move_list]
+                switch_names = [str(getattr(b, "label", "") or getattr(b, "custom_id", "")) for b in switch_list]
                 ai_adv = await smart_advisor.advise_combat_action(
                     boss_name=self.last_enemy_name,
                     active_pokemon=active_pokemon,
@@ -635,7 +671,7 @@ class WorldBoss(commands.Cog):
                     recent_log=message_blob[-200:],
                 )
                 target = str(ai_adv.get("target", "")).lower()
-                for b in (state.move_buttons + state.switch_buttons):
+                for b in (move_list + switch_list):
                     label = str(getattr(b, "label", "") or "").lower()
                     cid = str(getattr(b, "custom_id", "") or "").lower()
                     if (target and target in label) or (target and target in cid) or (label and label in target):
