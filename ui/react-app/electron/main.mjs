@@ -1,4 +1,7 @@
-import { app, BrowserWindow, shell } from "electron";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const { app, BrowserWindow, shell } = require("electron");
+delete process.env.ELECTRON_RUN_AS_NODE;
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
@@ -280,6 +283,11 @@ function createWindow() {
   win.once("ready-to-show", () => {
     win.show();
   });
+  setTimeout(() => {
+    if (!win.isDestroyed() && !win.isVisible()) {
+      win.show();
+    }
+  }, 1500);
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);

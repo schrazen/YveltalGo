@@ -1,6 +1,9 @@
 @echo off
 setlocal enabledelayedexpansion
 
+:: Critical fix: unset ELECTRON_RUN_AS_NODE leaked by VS Code integrated terminals
+set "ELECTRON_RUN_AS_NODE="
+
 set "ROOT=%~dp0"
 if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
 
@@ -8,6 +11,7 @@ set "PY=%ROOT%\.venv\Scripts\python.exe"
 set "NPM=C:\Program Files\nodejs\npm.cmd"
 set "UI_DIR=%ROOT%\ui\react-app"
 set "UI_URL=http://127.0.0.1:5173"
+set "ELECTRON_BIN=%UI_DIR%\node_modules\electron\dist\electron.exe"
 
 :: Verify Node / NPM
 if not exist "%NPM%" (
@@ -31,11 +35,11 @@ cls
 echo ===================================================================
 echo                        YveltalGo Suite
 echo ===================================================================
-echo   [1] Desktop App Mode   (Fast Native Window - Recommended)
-echo   [2] Desktop Debug Mode (Visible Console with Live Logs)
-echo   [3] Web Browser Mode   (React Dev Server + Flask on 8787)
-echo   [4] Rebuild Frontend   (Vite Recompile ^& Launch Desktop)
-echo   [5] Clean Stale Procs  (Kill Port 8787 ^& Orphaned Electrons)
+echo   [1] Desktop App Mode   - Fast Native Window (Recommended)
+echo   [2] Desktop Debug Mode - Visible Console with Live Logs
+echo   [3] Web Browser Mode   - React Dev Server + Flask on 8787
+echo   [4] Rebuild Frontend   - Vite Recompile and Launch Desktop
+echo   [5] Clean Stale Procs  - Kill Port 8787 and Orphaned Electrons
 echo   [6] Exit
 echo ===================================================================
 choice /C 123456 /N /T 8 /D 1 /M "Select option [1-6] (Auto-starts [1] in 8s): "
@@ -73,7 +77,7 @@ if not exist "%ROOT%\config.json" (
 )
 
 if not exist "%UI_DIR%\node_modules" (
-  echo [Setup] Installing UI dependencies (first run only)...
+  echo [Setup] Installing UI dependencies - first run only...
   cd /d "%UI_DIR%"
   call "%NPM%" install
   if errorlevel 1 (
@@ -84,7 +88,7 @@ if not exist "%UI_DIR%\node_modules" (
 )
 
 if not exist "%UI_DIR%\dist\index.html" (
-  echo [Setup] Building dashboard UI (first run only)...
+  echo [Setup] Building dashboard UI - first run only...
   cd /d "%UI_DIR%"
   call "%NPM%" run build
   if errorlevel 1 (
@@ -102,12 +106,16 @@ exit /b 0
 call :preflight
 if errorlevel 1 exit /b 1
 
+set "ELECTRON_MANAGE_BACKEND=1"
+set "ELECTRON_UI_URL=http://127.0.0.1:8787"
+set "ELECTRON_RUN_AS_NODE="
+
 echo Starting YveltalGo Desktop App...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$npm='%NPM%'; $wd='%UI_DIR%'; Start-Process -FilePath $npm -ArgumentList 'run','desktop:app' -WorkingDirectory $wd -WindowStyle Hidden"
-if errorlevel 1 (
-  echo [ERROR] Failed to start desktop process. Try option [2] Desktop Debug Mode.
-  pause
-  exit /b 1
+cd /d "%UI_DIR%"
+if exist "%ELECTRON_BIN%" (
+  start "" "%ELECTRON_BIN%" electron/main.mjs
+) else (
+  start "" "%NPM%" run desktop:app
 )
 echo Window launched.
 exit /b 0
@@ -119,11 +127,19 @@ exit /b 0
 call :preflight
 if errorlevel 1 exit /b 1
 
-echo Starting YveltalGo Desktop App (Debug Mode with Live Logs)...
+set "ELECTRON_MANAGE_BACKEND=1"
+set "ELECTRON_UI_URL=http://127.0.0.1:8787"
+set "ELECTRON_RUN_AS_NODE="
+
+echo Starting YveltalGo Desktop App - Debug Mode with Live Logs...
 echo Close this window or the Electron app to stop.
 echo.
 cd /d "%UI_DIR%"
-call "%NPM%" run desktop:app
+if exist "%ELECTRON_BIN%" (
+  "%ELECTRON_BIN%" electron/main.mjs
+) else (
+  call "%NPM%" run desktop:app
+)
 exit /b %errorlevel%
 
 :: -------------------------------------------------------------
@@ -160,7 +176,7 @@ echo Waiting for UI server on %UI_URL% ...
 for /l %%i in (1,1,45) do (
   powershell -NoProfile -Command "try { Invoke-WebRequest -UseBasicParsing '%UI_URL%' -TimeoutSec 1 ^| Out-Null; exit 0 } catch { exit 1 }" >nul 2>&1
   if not errorlevel 1 goto openui
-  timeout /t 1 /nobreak >nul
+  ping 127.0.0.1 -n 2 >nul
 )
 
 echo [WARNING] UI dev server taking longer than expected to report ready.
