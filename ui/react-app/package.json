@@ -11,7 +11,8 @@
     "electron:attach": "electron electron/main.mjs",
     "electron:attach:backend": "cross-env ELECTRON_MANAGE_BACKEND=1 electron electron/main.mjs",
     "electron:attach:backend:app": "cross-env ELECTRON_MANAGE_BACKEND=1 ELECTRON_UI_URL=http://127.0.0.1:8787 electron electron/main.mjs",
-    "desktop:app": "npm run build && npm run electron:attach:backend:app",
+    "desktop:app": "npm run electron:attach:backend:app",
+    "desktop:build-and-run": "npm run build && npm run electron:attach:backend:app",
     "desktop:dev": "concurrently -k -n VITE,ELECTRON \"vite --host 127.0.0.1 --port 5173 --strictPort\" \"wait-on http://127.0.0.1:5173 && npm run electron:attach:backend\""
   },
   "dependencies": {

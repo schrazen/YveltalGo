@@ -2,7 +2,7 @@ import { app, BrowserWindow, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, createWriteStream, mkdirSync } from "node:fs";
 import http from "node:http";
 import https from "node:https";
 
@@ -266,6 +266,7 @@ function createWindow() {
     minWidth: 1100,
     minHeight: 760,
     backgroundColor: "#030000",
+    show: false,
     autoHideMenuBar: true,
     title: "YveltalGo",
     icon: iconPath,
@@ -274,6 +275,10 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     },
+  });
+
+  win.once("ready-to-show", () => {
+    win.show();
   });
 
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -304,9 +309,20 @@ function createWindow() {
   void loadUiWithRetry(win);
 }
 
-function startBackendIfRequested() {
+async function startBackendIfRequested() {
   if (process.env.ELECTRON_MANAGE_BACKEND !== "1") {
     return;
+  }
+
+  // If port 8787 is already healthy and responding, reuse it without spawning a duplicate backend.
+  try {
+    const identity = await probeServerIdentity();
+    if (identity.ok) {
+      console.log("[Electron] Existing backend detected on port 8787. Attaching cleanly.");
+      return;
+    }
+  } catch {
+    // proceed to spawn
   }
 
   const isWindows = process.platform === "win32";
@@ -330,25 +346,44 @@ function startBackendIfRequested() {
   }
   const args = ["main.py"];
 
+  const logDir = path.join(projectRoot, "logs");
+  try {
+    mkdirSync(logDir, { recursive: true });
+  } catch {
+    // ignore
+  }
+  const logStream = createWriteStream(path.join(logDir, "electron_backend.log"), { flags: "a" });
+
   backendProc = spawn(command, args, {
     cwd: projectRoot,
-    stdio: "inherit",
+    stdio: ["ignore", "pipe", "pipe"],
     shell: false,
     env: {
       ...process.env,
       PYTHONUNBUFFERED: "1",
       POKEGRINDER_ROOT: projectRoot,
-      // Python must not use interactive `input()` — Electron's inherited stdio is not a TTY.
       POKEGRINDER_SKIP_TERMINAL: "1",
       ELECTRON_MANAGE_BACKEND: "1",
     },
+  });
+
+  backendProc.stdout?.pipe(logStream);
+  backendProc.stderr?.pipe(logStream);
+
+  backendProc.stderr?.on("data", (chunk) => {
+    const err = chunk.toString();
+    console.error(`[Python] ${err.trim()}`);
+    startupIssueMessage = err.slice(-300);
   });
 
   backendProc.on("error", (err) => {
     console.error(`[Electron] Failed to start backend with '${command}': ${err?.message || err}`);
   });
 
-  backendProc.on("exit", () => {
+  backendProc.on("exit", (code) => {
+    if (code !== null && code !== 0) {
+      console.warn(`[Electron] Python backend exited with code ${code}`);
+    }
     backendProc = null;
   });
 }
@@ -358,15 +393,19 @@ function stopBackendIfManaged() {
     return;
   }
   try {
-    backendProc.kill();
+    if (process.platform === "win32" && backendProc.pid) {
+      spawn("taskkill", ["/pid", String(backendProc.pid), "/f", "/t"], { stdio: "ignore" });
+    } else {
+      backendProc.kill("SIGKILL");
+    }
   } catch {
     // ignore
   }
   backendProc = null;
 }
 
-app.whenReady().then(() => {
-  startBackendIfRequested();
+app.whenReady().then(async () => {
+  await startBackendIfRequested();
   createWindow();
 
   app.on("activate", () => {
