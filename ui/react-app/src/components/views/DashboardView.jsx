@@ -8,6 +8,11 @@ import {
   ShieldCheckIcon,
   PlayIcon,
   PauseIcon,
+  FishIcon,
+  CoinIcon,
+  CrosshairIcon,
+  CrownIcon,
+  ChevronRightIcon,
 } from "../Icons.jsx";
 import { formatRelativeTime } from "../../utils/helpers.js";
 
@@ -71,8 +76,9 @@ export default function DashboardView({
             <div className="w-full bg-slate-900 rounded-full h-1.5 mt-1.5 overflow-hidden">
               <div className="bg-gradient-to-r from-rose-500 to-amber-400 h-full rounded-full" style={{ width: `${votePercent}%` }} />
             </div>
-            <p className="text-[10px] text-rose-400 font-semibold mt-1">
-              {etaMins > 0 ? `ETA ~${etaMins.toFixed(0)}m ➔` : "Open Hub ➔"}
+            <p className="text-[10px] text-rose-400 font-semibold mt-1 flex items-center gap-0.5">
+              <span>{etaMins > 0 ? `ETA ~${etaMins.toFixed(0)}m` : "Open Hub"}</span>
+              <ChevronRightIcon className="w-3 h-3 inline" />
             </p>
           </div>
         </div>
@@ -95,7 +101,7 @@ export default function DashboardView({
         <div className="glass-card p-3.5 rounded-2xl flex flex-col justify-between">
           <div className="flex items-center justify-between text-xs text-slate-400">
             <span className="font-bold uppercase tracking-wider text-[10px]">Fish Today</span>
-            <span className="text-cyan-400 text-xs">🎣</span>
+            <FishIcon className="w-3.5 h-3.5 text-cyan-400" />
           </div>
           <div className="mt-2">
             <div className="text-2xl font-black text-white font-mono">{dayTotals.fishCatches.toLocaleString()}</div>
@@ -109,7 +115,7 @@ export default function DashboardView({
         <div className="glass-card p-3.5 rounded-2xl flex flex-col justify-between">
           <div className="flex items-center justify-between text-xs text-slate-400">
             <span className="font-bold uppercase tracking-wider text-[10px]">Coins Earned</span>
-            <span className="text-amber-400 text-xs">🪙</span>
+            <CoinIcon className="w-3.5 h-3.5 text-amber-400" />
           </div>
           <div className="mt-2">
             <div className="text-2xl font-black text-amber-300 font-mono">+{dayTotals.coins.toLocaleString()}</div>
@@ -204,7 +210,10 @@ export default function DashboardView({
                         : "bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300"
                     }`}
                   >
-                    <span>🏹 Hunt</span>
+                    <span className="flex items-center gap-1.5">
+                      <CrosshairIcon className="w-3.5 h-3.5" />
+                      <span>Hunt</span>
+                    </span>
                     <span className="text-[10px] font-mono">{huntActive ? "ON" : "OFF"}</span>
                   </button>
 
@@ -218,7 +227,10 @@ export default function DashboardView({
                         : "bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300"
                     }`}
                   >
-                    <span>🎣 Fish</span>
+                    <span className="flex items-center gap-1.5">
+                      <FishIcon className="w-3.5 h-3.5" />
+                      <span>Fish</span>
+                    </span>
                     <span className="text-[10px] font-mono">{fishActive ? "ON" : "OFF"}</span>
                   </button>
 
@@ -232,7 +244,10 @@ export default function DashboardView({
                         : "bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300"
                     }`}
                   >
-                    <span>⚔️ AutoFight</span>
+                    <span className="flex items-center gap-1.5">
+                      <SwordsIcon className="w-3.5 h-3.5" />
+                      <span>AutoFight</span>
+                    </span>
                     <span className="text-[10px] font-mono">{autofightActive ? "ON" : "OFF"}</span>
                   </button>
 
@@ -246,7 +261,10 @@ export default function DashboardView({
                         : "bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300"
                     }`}
                   >
-                    <span>👑 WorldBoss</span>
+                    <span className="flex items-center gap-1.5">
+                      <CrownIcon className="w-3.5 h-3.5" />
+                      <span>WorldBoss</span>
+                    </span>
                     <span className="text-[10px] font-mono">{wbActive ? "ON" : "OFF"}</span>
                   </button>
                 </div>

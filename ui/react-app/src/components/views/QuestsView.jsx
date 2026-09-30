@@ -1,5 +1,15 @@
 import React, { useState } from "react";
-import { QuestIcon, SparkleIcon, RefreshIcon, CheckIcon } from "../Icons.jsx";
+import {
+  QuestIcon,
+  SparkleIcon,
+  RefreshIcon,
+  CheckIcon,
+  TargetIcon,
+  TrophyIcon,
+  StarIcon,
+  LeafIcon,
+  SpinnerIcon,
+} from "../Icons.jsx";
 import { formatRelativeTime } from "../../utils/helpers.js";
 
 export default function QuestsView({
@@ -47,24 +57,27 @@ export default function QuestsView({
       <div className="glass-panel p-3 rounded-2xl border border-rose-950/40 flex flex-wrap items-center justify-between gap-3 shadow-lg">
         <div className="flex items-center gap-2">
           {[
-            { key: "quests", label: "Quest Automation & Catalog", icon: "🎯" },
-            { key: "challenges", label: "Daily Challenges", icon: "🏆" },
-            { key: "bonuses", label: "Events & Multipliers", icon: "🌟" },
-            { key: "berry", label: "Berry Garden", icon: "🍓" },
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeTab === tab.key
-                  ? "bg-rose-600 text-white shadow-md shadow-rose-950/50"
-                  : "bg-slate-900/60 text-slate-400 hover:text-white border border-slate-800"
-              }`}
-            >
-              <span>{tab.icon}</span>
-              <span>{tab.label}</span>
-            </button>
-          ))}
+            { key: "quests", label: "Quest Automation & Catalog", Icon: TargetIcon },
+            { key: "challenges", label: "Daily Challenges", Icon: TrophyIcon },
+            { key: "bonuses", label: "Events & Multipliers", Icon: StarIcon },
+            { key: "berry", label: "Berry Garden", Icon: LeafIcon },
+          ].map((tab) => {
+            const TabIcon = tab.Icon;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 ${
+                  activeTab === tab.key
+                    ? "bg-rose-600 text-white shadow-md shadow-rose-950/50"
+                    : "bg-slate-900/60 text-slate-400 hover:text-white border border-slate-800"
+                }`}
+              >
+                <TabIcon className="w-4 h-4" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
 
         {activeTab === "quests" && (
@@ -130,7 +143,8 @@ export default function QuestsView({
           {/* Catalog Cards Grid */}
           {questCatalogLoading ? (
             <div className="p-12 text-center text-sm text-slate-400 flex items-center justify-center gap-2">
-              <span className="animate-spin text-rose-400">⏳</span> Loading Quest Catalog...
+              <SpinnerIcon className="w-4 h-4 text-rose-400" />
+              <span>Loading Quest Catalog...</span>
             </div>
           ) : filteredCatalog.length === 0 ? (
             <div className="p-8 text-center text-sm text-slate-500">
@@ -285,8 +299,9 @@ export default function QuestsView({
             </button>
           </div>
 
-          <div className="p-8 text-center text-sm text-slate-400 rounded-xl bg-slate-900/60 border border-slate-800">
-            🍓 Berry auto-watering loop is active. The bot checks soil moisture every 15 minutes.
+          <div className="p-8 text-center text-sm text-slate-300 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-center gap-2">
+            <LeafIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>Berry auto-watering loop is active. The bot checks soil moisture every 15 minutes.</span>
           </div>
         </div>
       )}

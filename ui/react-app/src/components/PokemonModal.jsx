@@ -1,5 +1,5 @@
 import React from "react";
-import { CloseIcon, PokeBallIcon, SparkleIcon } from "./Icons.jsx";
+import { CloseIcon, PokeBallIcon, SparkleIcon, SpinnerIcon } from "./Icons.jsx";
 import { toDisplayName, getFlavorText } from "../utils/helpers.js";
 
 const TYPE_COLORS = {
@@ -80,7 +80,8 @@ export default function PokemonModal({
         {/* Loading / Error States */}
         {selectedPokemonLoading && (
           <div className="p-8 text-center text-sm text-slate-400 flex items-center justify-center gap-2">
-            <span className="animate-spin text-rose-400">⏳</span> Querying PokéAPI Database...
+            <SpinnerIcon className="w-4 h-4 text-rose-400" />
+            <span>Querying PokéAPI Database...</span>
           </div>
         )}
 

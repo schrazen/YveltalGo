@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { CogIcon, CheckIcon, WarningIcon } from "../Icons.jsx";
+import { CogIcon, CheckIcon, WarningIcon, ShieldIcon, ClockIcon } from "../Icons.jsx";
 
 export default function ConfigView({
   configJson,
@@ -52,8 +52,15 @@ export default function ConfigView({
             <CogIcon className="w-4 h-4 text-rose-500" />
             <span>Application Settings & Configuration</span>
           </h3>
-          <p className="text-xs text-slate-400 mt-0.5 font-mono">
-            {configPath || "config.json"} • {configDirty ? "⚠️ Unsaved changes" : "✅ Synced with disk"}
+          <p className="text-xs text-slate-400 mt-0.5 font-mono flex items-center gap-1.5">
+            <span>{configPath || "config.json"}</span>
+            <span className="text-slate-600">•</span>
+            <span className="flex items-center gap-1.5">
+              <span className={`w-1.5 h-1.5 rounded-full ${configDirty ? "bg-amber-400" : "bg-emerald-400"}`} />
+              <span className={configDirty ? "text-amber-300" : "text-emerald-300"}>
+                {configDirty ? "Unsaved changes" : "Synced with disk"}
+              </span>
+            </span>
           </p>
         </div>
 
@@ -102,7 +109,8 @@ export default function ConfigView({
           {/* Section 1: Security & Server Lock */}
           <div className="glass-panel p-5 rounded-2xl border border-rose-950/40 shadow-xl space-y-3.5">
             <h4 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <span>🛡️ Security & Server Firewall</span>
+              <ShieldIcon className="w-4 h-4 text-emerald-400" />
+              <span>Security & Server Firewall</span>
             </h4>
 
             <div>
@@ -136,7 +144,8 @@ export default function ConfigView({
           {/* Section 2: Delays & Pacing */}
           <div className="glass-panel p-5 rounded-2xl border border-rose-950/40 shadow-xl space-y-3.5">
             <h4 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <span>⏱️ Pacing & Delay Limits</span>
+              <ClockIcon className="w-4 h-4 text-sky-400" />
+              <span>Pacing & Delay Limits</span>
             </h4>
 
             <div className="grid grid-cols-2 gap-2.5">

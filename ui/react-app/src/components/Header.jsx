@@ -76,7 +76,7 @@ export default function Header({
               onChange={(e) => setSelectedUserScope(e.target.value)}
               className="bg-slate-900/90 text-xs font-semibold text-slate-200 border border-rose-900/40 rounded-xl px-3 py-1.5 pr-7 focus:outline-none focus:border-rose-500 transition-all cursor-pointer"
             >
-              <option value="all">👥 All Accounts ({accounts.length || bots.length})</option>
+              <option value="all">All Accounts ({accounts.length || bots.length})</option>
               {accounts.map((acc, i) => {
                 const name = acc?.username || acc?.name || `Account ${i + 1}`;
                 return <option key={i} value={acc?.username || acc?.id || i}>{name}</option>;
