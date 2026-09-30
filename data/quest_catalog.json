@@ -103,8 +103,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": "npc 210",
-    "times_seen": 73,
-    "last_seen_utc": "2026-09-29T21:33:19.798675+00:00",
+    "times_seen": 83,
+    "last_seen_utc": "2026-09-30T06:32:29.033726+00:00",
     "sample_titles": [
       "Defeat 2 Challengers in battle",
       "Defeat 3 Boss Challengers!",
@@ -205,8 +205,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 48,
-    "last_seen_utc": "2026-09-29T21:26:28.940881+00:00",
+    "times_seen": 52,
+    "last_seen_utc": "2026-09-30T04:21:15.273609+00:00",
     "sample_titles": [
       "Encounter 500 Pokemon in the wild",
       "Encounter 500 Pokemon in wild",
@@ -265,8 +265,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 57,
-    "last_seen_utc": "2026-09-29T22:32:47.490873+00:00",
+    "times_seen": 99,
+    "last_seen_utc": "2026-09-30T06:32:29.034735+00:00",
     "sample_titles": [
       "Catch 15 Uncommon Pokemon",
       "Catch 15 Uncommon Pokemon!"
@@ -284,11 +284,12 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 4,
-    "last_seen_utc": "2026-09-29T21:55:12.879550+00:00",
+    "times_seen": 6,
+    "last_seen_utc": "2026-09-30T04:17:09.348849+00:00",
     "sample_titles": [
       "<:dexcaught:667082939632189451> **Catch 5 <:Rare:667123659822989323> Rare Pokemon**",
-      "<:dexcaught:667082939632189451> **Catch 2 <:SuperRare:667124003793797120> Super Rare Pokemon**"
+      "<:dexcaught:667082939632189451> **Catch 2 <:SuperRare:667124003793797120> Super Rare Pokemon**",
+      "<:dexcaught:667082939632189451> **Catch 1 <:SuperRare:667124003793797120> Super Rare Pokemon**"
     ],
     "is_custom": false
   },
@@ -351,8 +352,8 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 149,
-    "last_seen_utc": "2026-09-29T22:32:47.486867+00:00",
+    "times_seen": 191,
+    "last_seen_utc": "2026-09-30T06:32:29.031218+00:00",
     "sample_titles": [
       "Catch 20 Water-type Pokemon",
       "Catch 20 Grass Type Pokemo",
@@ -676,15 +677,16 @@
     "action": "auto_complete",
     "default_action": "auto_complete",
     "battle_mode": null,
-    "times_seen": 62,
-    "last_seen_utc": "2026-09-29T22:32:47.488865+00:00",
+    "times_seen": 100,
+    "last_seen_utc": "2026-09-30T03:59:22.345416+00:00",
     "sample_titles": [
       "Receive",
       "Receive 2 🍬 🍭 🍫 or 🥦 from other players!",
       "Receive 2 🍬 🍭 🍫 or 🥦 from other players",
       "**Receive 2 🍬 🍭 🍫 or 🥦 from other players**",
       "**Receive 2 🥦 broccoli from other players**",
-      "**Receive 1 🧁 from another player**"
+      "**Receive 1 🧁 from another player**",
+      "**Receive 1 🍬 candy from another player**"
     ],
     "is_custom": false
   }

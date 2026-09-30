@@ -393,7 +393,7 @@ async def start_bots(token: str) -> None:
         max(0, int(account_captcha_alerts.get("CooldownSeconds", captcha_alerts.get("CooldownSeconds", 60)))),
         account.get("EggHatching", True),
         account.get("AutoHoldEgg", True),
-        account_wb.get("Enabled", wb_defaults.get("Enabled", False)),
+        account_wb.get("Enabled", wb_defaults.get("Enabled", True)),
         account_wb.get("DangerHPPercent", wb_defaults.get("DangerHPPercent", 40)),
         account_wb.get("MaxIdleSeconds", wb_defaults.get("MaxIdleSeconds", 120)),
         account_wb.get("DryRun", wb_defaults.get("DryRun", False)),
@@ -438,6 +438,11 @@ async def start_bots(token: str) -> None:
         bool(account_quest.get("AutoBuyResetScroll", quest_defaults.get("AutoBuyResetScroll", True))),
         list(account_quest.get("ImpossibleKeywords", quest_defaults.get("ImpossibleKeywords", ["mega chamber", "megachamber"]))),
     )
+    bot.config.required_server_id = bot.required_server_id
+    bot.config.world_boss_team_preset = str(account_wb.get("TeamPreset", wb_defaults.get("TeamPreset", "wb")) or "wb")
+    bot.config.autofight_team_preset = str(account_autofight.get("TeamPreset", autofight_defaults.get("TeamPreset", "farm")) or "farm")
+    from modules.server_guard import install_server_firewall
+    install_server_firewall(bot)
     bot.speed_mode_defaults = _capture_speed_defaults(bot)
     bot.humanizer = Humanizer(bot)
     if bool(getattr(bot.config, "max_speed_mode_enabled", False)) and bool(getattr(bot.config, "super_low_risk_mode_enabled", False)):
@@ -536,7 +541,9 @@ async def start_bots(token: str) -> None:
         bot.autofight_status = "Disabled"
         bot.autofight_guard_status = ""
 
-    if bool(getattr(bot.config, "world_boss_enabled", False)) and int(getattr(bot.config, "world_boss_channel_id", 0) or 0) != 0:
+    wb_channel_id = int(getattr(bot.config, "world_boss_channel_id", 0) or 0)
+    if wb_channel_id != 0 or bool(getattr(bot.config, "world_boss_enabled", False)):
+        bot.config.world_boss_enabled = True
         bot.world_boss_status = "Idle"
         await add_cog_compat(bot, WorldBoss(bot))
     else:
@@ -860,6 +867,32 @@ def get_runtime_snapshot() -> dict:
             "check_interval_seconds": int(getattr(getattr(bot, "config", None), "catchbot_check_interval_seconds", 900) or 900),
         }
 
+        wb_cog = bot.get_cog("WorldBoss")
+        estimator = getattr(wb_cog, "estimator", None) if wb_cog else None
+        wb_decider = getattr(wb_cog, "decider", None) if wb_cog else None
+        worldboss_info = {
+            "enabled": bool(getattr(getattr(bot, "config", None), "world_boss_enabled", False)),
+            "channel_id": int(getattr(getattr(bot, "config", None), "world_boss_channel_id", 0) or 0),
+            "status": str(getattr(bot, "world_boss_status", "Disabled")),
+            "active": bool(getattr(bot, "world_boss_active", False)),
+            "current_boss": str(getattr(wb_decider, "current_boss_name", "") or getattr(wb_cog, "last_enemy_name", "") or "None") if wb_cog else "None",
+            "active_pokemon": str(getattr(wb_decider, "active_pokemon_name", "") or "None") if wb_cog else "None",
+            "dry_run": bool(getattr(getattr(bot, "config", None), "wb_dry_run", False)),
+            "danger_hp_percent": int(getattr(getattr(bot, "config", None), "wb_danger_hp_percent", 40) or 40),
+            "estimator": {
+                "current_votes": int(getattr(estimator, "current_votes", 0) or 0) if estimator else 0,
+                "target_votes": int(getattr(estimator, "target_votes", 250) or 250) if estimator else 250,
+                "vote_velocity": float(getattr(estimator, "vote_velocity_per_min", 4.0) or 4.0) if estimator else 0.0,
+                "eta_minutes": float(estimator.get_estimated_minutes_to_spawn()) if estimator else 0.0,
+                "stage": str(getattr(estimator, "current_stage", "Discovering")) if estimator else "Discovering",
+                "last_defeated_seconds_ago": int(time() - estimator.last_finish_time) if estimator and estimator.last_finish_time > 0 else None,
+                "learned_interval_minutes": round(estimator.learned_interval / 60.0, 1) if estimator else 120.0,
+                "last_probe_time": float(getattr(estimator, "last_probe_time", 0.0) or 0.0) if estimator else 0.0,
+                "summary": str(estimator.get_status_summary()) if estimator else "",
+                "eternamax_votes": list(getattr(estimator, "eternamax_votes", [0, 10000])) if estimator else [0, 10000],
+            },
+        }
+
         day_payload = {
             "encounters": int(getattr(bot, "encounters", 0)),
             "catches": int(getattr(bot, "catches", 0)),
@@ -886,13 +919,16 @@ def get_runtime_snapshot() -> dict:
                 "hunting_status": str(getattr(bot, "hunting_status", "")),
                 "fishing_status": str(getattr(bot, "fishing_status", "")),
                 "catchbot_status": str(getattr(bot, "catchbot_status", "Disabled")),
+                "world_boss_status": str(getattr(bot, "world_boss_status", "Disabled")),
                 "berry": berry_info,
                 "catchbot": catchbot_info,
+                "world_boss": worldboss_info,
                 "automations": {
                     "egg_hatching": bool(getattr(getattr(bot, "config", None), "egg_hatching", False)),
                     "auto_hold_egg": bool(getattr(getattr(bot, "config", None), "auto_hold_egg", False)),
                     "berry_enabled": bool(getattr(getattr(bot, "config", None), "berry_enabled", False)),
                     "catchbot_enabled": bool(getattr(getattr(bot, "config", None), "catchbot_enabled", False)),
+                    "world_boss_enabled": bool(getattr(getattr(bot, "config", None), "world_boss_enabled", False)),
                     "anti_detection_enabled": bool(getattr(getattr(bot, "config", None), "enable_anti_detection", False)),
                     "human_breaks_enabled": bool(getattr(getattr(bot, "config", None), "human_breaks_enabled", False)),
                     "captcha_auto_answer_enabled": bool(getattr(getattr(bot, "config", None), "captcha_auto_answer_enabled", True)),
@@ -1622,6 +1658,99 @@ async def runtime_action_legacy(action: str) -> dict:
         quest_catalog.reset_defaults()
         return {"ok": True, "message": "Quest catalog reset to defaults.", "stats": quest_catalog.get_stats()}
 
+    if action == "toggle_world_boss":
+        target_account = (payload or {}).get("account_id") or (payload or {}).get("account") or (payload or {}).get("target")
+        enabled_val = (payload or {}).get("enabled")
+        updated = 0
+        for bot in bots:
+            acc_id = str(getattr(bot, "stats_key", ""))
+            if target_account and target_account not in {acc_id, getattr(bot.user, "name", "") if bot.user else ""}:
+                continue
+            cur = bool(getattr(getattr(bot, "config", None), "world_boss_enabled", False))
+            new_val = not cur if enabled_val is None else bool(enabled_val)
+            if bot.config:
+                bot.config.world_boss_enabled = new_val
+            bot.world_boss_status = "WorldBoss auto: ON" if new_val else "WorldBoss auto: OFF"
+            wb_cog = bot.get_cog("WorldBoss")
+            if wb_cog:
+                if new_val:
+                    if int(getattr(bot.config, "world_boss_channel_id", 0) or 0) != 0 and hasattr(wb_cog, "adaptive_probe_loop") and not wb_cog.adaptive_probe_loop.is_running():
+                        try:
+                            wb_cog.adaptive_probe_loop.start()
+                        except RuntimeError:
+                            pass
+                else:
+                    if hasattr(wb_cog, "adaptive_probe_loop") and wb_cog.adaptive_probe_loop.is_running():
+                        wb_cog.adaptive_probe_loop.cancel()
+                    wb_cog._reset_fight()
+            updated += 1
+        return {"ok": True, "message": f"Updated WorldBoss auto on {updated} bot(s)."}
+
+    if action == "force_world_boss_probe":
+        dispatched = 0
+        for bot in bots:
+            wb_cog = bot.get_cog("WorldBoss")
+            if not wb_cog:
+                continue
+            channel_id = int(getattr(bot.config, "world_boss_channel_id", 0) or getattr(bot.config, "hunting_channel_id", 0) or getattr(bot.config, "fishing_channel_id", 0) or 0)
+            if channel_id == 0:
+                continue
+            channel = bot.get_channel(channel_id)
+            if channel is None:
+                try:
+                    channel = await bot.fetch_channel(channel_id)
+                except Exception:
+                    continue
+            if channel is not None:
+                try:
+                    await channel.send(";wb")
+                    if hasattr(wb_cog, "estimator") and wb_cog.estimator:
+                        wb_cog.estimator.record_probe(time())
+                    dispatched += 1
+                except Exception:
+                    pass
+        return {"ok": True, "message": f"Dispatched ;wb probe on {dispatched} bot(s)."}
+
+    if action == "equip_world_boss_team":
+        from modules.worldboss_strategies import (
+            GENERAL_CHEESE_PRESETS,
+            MEW_TWO_Y_CHEESE_COMBOS,
+            WorldBossTeamBuilder,
+        )
+        target_boss = str((payload or {}).get("boss", "Gigantamax-Pikachu") or "Gigantamax-Pikachu").strip()
+        preset_id = (payload or {}).get("preset_id")
+        preset = None
+        all_presets_map = {**MEW_TWO_Y_CHEESE_COMBOS, **GENERAL_CHEESE_PRESETS}
+        if preset_id:
+            if preset_id in all_presets_map:
+                preset = all_presets_map[preset_id]
+            else:
+                for p in all_presets_map.values():
+                    if p.name == preset_id:
+                        preset = p
+                        break
+        if preset is None:
+            preset, _ = WorldBossTeamBuilder.recommend_team(target_boss)
+
+        cmds = WorldBossTeamBuilder.generate_pokemeow_commands(preset)
+        dispatched = 0
+        for bot in bots:
+            channel_id = int(getattr(bot.config, "world_boss_channel_id", 0) or getattr(bot.config, "hunting_channel_id", 0) or getattr(bot.config, "fishing_channel_id", 0) or 0)
+            if channel_id == 0:
+                continue
+            channel = bot.get_channel(channel_id)
+            if channel is None:
+                try:
+                    channel = await bot.fetch_channel(channel_id)
+                except Exception:
+                    continue
+            if channel is not None:
+                for c in cmds:
+                    await channel.send(c)
+                    await asyncio.sleep(1.5)
+                dispatched += 1
+        return {"ok": True, "message": f"Equipped '{preset.name}' on {dispatched} bot(s). Commands executed: {len(cmds)}", "commands": cmds}
+
     return {"ok": False, "error": f"Unknown action '{action}'."}
 
 
@@ -1788,4 +1917,5 @@ async def start() -> None:
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-asyncio.run(start())
+if __name__ == "__main__":
+    asyncio.run(start())

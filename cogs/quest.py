@@ -11,6 +11,7 @@ from discord import Message, TextChannel
 from discord.ext import commands, tasks
 
 from modules.captcha_gate import is_captcha_active, is_in_battle
+from modules.server_guard import is_channel_in_required_server, is_message_in_required_server
 from modules.challenge_manager import find_eligible_npc_for_quest, parse_challenges_text
 from modules.pokemeow_reader import collect_message_text, parse_quest_board_payload, _utc_now_iso
 from modules.quest_catalog import quest_catalog
@@ -455,6 +456,19 @@ class QuestManager(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: Message) -> None:
         if getattr(getattr(message, "author", None), "id", 0) != POKEMEOW_APP_ID:
+            return
+
+        if not is_message_in_required_server(self.bot, message):
+            return
+
+        channel_id = int(getattr(getattr(message, "channel", None), "id", 0) or 0)
+        allowed_channels = {
+            int(getattr(self.config, "hunting_channel_id", 0) or 0),
+            int(getattr(self.config, "fishing_channel_id", 0) or 0),
+            int(getattr(self.config, "autofight_channel_id", 0) or 0),
+        }
+        allowed_channels.discard(0)
+        if allowed_channels and channel_id not in allowed_channels:
             return
 
         haystack = collect_message_text(message)

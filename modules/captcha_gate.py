@@ -63,11 +63,35 @@ def is_captcha_active(bot: Any, channel_id: int | None = None) -> bool:
     return False
 
 
-def is_in_battle(bot: Any) -> bool:
+def is_in_battle(bot: Any, channel_id: int | None = None) -> bool:
     """Return True if the bot is currently engaged in an active PokéMeow battle."""
     if bot is None:
         return False
-    return bool(getattr(bot, "autofight_active", False))
+    if bool(getattr(bot, "autofight_active", False)):
+        return True
+    if bool(getattr(bot, "world_boss_active", False)):
+        return True
+    if bool(getattr(bot, "npc_battle_active", False)):
+        return True
+
+    import time
+    now = time.time()
+    last_action = float(getattr(bot, "last_battle_activity_at", 0.0) or 0.0)
+    if last_action > 0.0 and (now - last_action) < 15.0:
+        return True
+
+    last_wb_action = float(getattr(bot, "last_wb_action", 0.0) or 0.0)
+    if last_wb_action > 0.0 and (now - last_wb_action) < 15.0:
+        return True
+
+    get_cog = getattr(bot, "get_cog", None)
+    if callable(get_cog):
+        af_cog = get_cog("AutoFight")
+        if af_cog is not None:
+            if getattr(af_cog, "_active_pokemon", "") and getattr(af_cog, "_enemy_active_pokemon", ""):
+                return True
+
+    return False
 
 
 def can_dispatch_command(bot: Any, channel_id: int | None = None, require_out_of_battle: bool = False) -> bool:

@@ -15,6 +15,7 @@ from modules.autofight_log import record_autofight_event
 from modules.cloudflare_indicator import notify_cloudflare_in_channel
 from modules.pokeapi_cache import get_move_brief, get_pokemon_brief
 from modules.captcha_gate import is_captcha_active
+from modules.server_guard import is_channel_in_required_server, is_message_in_required_server
 from modules.runtime_file_log import info as runtime_info_log
 
 POKEMEOW_APP_ID = 664508672713424926
@@ -912,6 +913,8 @@ class AutoFight(commands.Cog):
             )
 
     def _is_target_channel(self, message: Message) -> bool:
+        if not is_message_in_required_server(self.bot, message):
+            return False
         return int(getattr(message.channel, "id", 0) or 0) == int(self.config.autofight_channel_id or 0)
 
     @staticmethod
@@ -986,6 +989,18 @@ class AutoFight(commands.Cog):
                 normalized = "npc 210"
             elif clean_mode in ("npc", "trainer"):
                 normalized = "npc 1"
+
+            if not is_channel_in_required_server(self.bot, channel):
+                return False
+
+            af_team = getattr(self.config, "autofight_team_preset", "farm") or "farm"
+            if not getattr(self, "_equipped_autofight_team", False):
+                try:
+                    await channel.send(f";team use {af_team}")
+                    self._equipped_autofight_team = True
+                    await asyncio.sleep(1.2)
+                except Exception:
+                    pass
 
             cmd = ";battle" + (f" {normalized}" if normalized else "")
             try:
@@ -1106,6 +1121,8 @@ class AutoFight(commands.Cog):
     async def abort_battle_run(self, reason: str = "") -> None:
         """Immediately aborts any active battle run, clearing active state and unpausing hunting/fishing."""
         self.bot.autofight_active = False
+        self.bot.npc_battle_active = False
+        self._equipped_autofight_team = False
         self.bot.autofight_status = "Idle"
         self._cancel_next_battle_task()
         self._cancel_dispatch_watchdog()
@@ -4022,6 +4039,8 @@ class AutoFight(commands.Cog):
             return
 
         self._last_battle_activity_at = time.monotonic()
+        self.bot.last_battle_activity_at = time.time()
+        self.bot.npc_battle_active = True
         self._run_no_response_retries = 0
 
         combined_text = self._combine_message_text(message)

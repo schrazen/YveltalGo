@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import json
+import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
-import re
+
+BASE_DIR = Path(__file__).resolve().parents[1]
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
 from flask import Flask, jsonify, request, send_from_directory
 from werkzeug.exceptions import HTTPException
@@ -21,7 +26,6 @@ from modules.autofight_log import (
     get_autofight_events,
 )
 
-BASE_DIR = Path(__file__).resolve().parents[1]
 CONFIG_PATH = BASE_DIR / "config.json"
 DATA_DIR = BASE_DIR / "data"
 from modules.stats_store import STATS_PATH, get_stats_key, load_stats_for_key, read_all_stats
@@ -1437,6 +1441,57 @@ def runtime_action():
     try:
         result = _runtime_action_handler(action, payload)
         return jsonify({"ok": bool(result.get("ok", False)), **result})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
+@app.get("/api/worldboss/presets")
+def get_worldboss_presets():
+    try:
+        from modules.worldboss_strategies import (
+            GENERAL_CHEESE_PRESETS,
+            MEW_TWO_Y_CHEESE_COMBOS,
+            WORLD_BOSS_STRATEGIES,
+            WorldBossTeamBuilder,
+        )
+        boss = request.args.get("boss", "Gigantamax-Pikachu")
+        recommended, reason = WorldBossTeamBuilder.recommend_team(boss)
+        presets_for_boss = WorldBossTeamBuilder.get_presets_for_boss(boss)
+
+        def _serialize_preset(p):
+            slots = []
+            for idx, pkmn in enumerate(p.slots, start=1):
+                slots.append({
+                    "pokemon": pkmn,
+                    "slot_number": idx,
+                    "recommended_item": p.held_items.get(pkmn, ""),
+                    "moves": p.recommended_moves.get(pkmn, []),
+                })
+            return {
+                "name": p.name,
+                "archetype": p.archetype,
+                "tier": getattr(p, "tier", "S+"),
+                "description": p.description,
+                "slots": slots,
+                "commands": WorldBossTeamBuilder.generate_pokemeow_commands(p),
+            }
+
+        all_presets = []
+        seen = set()
+        for p in list(MEW_TWO_Y_CHEESE_COMBOS.values()) + list(GENERAL_CHEESE_PRESETS.values()):
+            if p.name not in seen:
+                seen.add(p.name)
+                all_presets.append(_serialize_preset(p))
+
+        return jsonify({
+            "ok": True,
+            "target_boss": boss,
+            "recommended": _serialize_preset(recommended),
+            "recommendation_reason": reason,
+            "boss_presets": [_serialize_preset(p) for p in presets_for_boss],
+            "all_presets": all_presets,
+            "known_bosses": sorted(list(WORLD_BOSS_STRATEGIES.keys())),
+        })
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 500
 

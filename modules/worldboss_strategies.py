@@ -102,6 +102,27 @@ MEW_TWO_Y_CHEESE_COMBOS: dict[str, TeamPreset] = {
             "Mega-Mewtwo-Y": ["Stored Power", "Aura Sphere", "Recover"],
         },
     ),
+    "contrary_superpower_malamar": TeamPreset(
+        name="Mew + Malamar + Mega-Mewtwo-Y (Contrary Superpower & Eerie Pass)",
+        archetype="stored_power",
+        slots=["Mew", "Malamar", "Mega-Mewtwo-Y"],
+        tier="S+",
+        held_items={
+            "Mega-Mewtwo-Y": "Twisted Spoon",
+            "Malamar": "Leftovers",
+            "Mew": "Focus Sash",
+        },
+        description=(
+            "Mew leads with Eerie Impulse (-2 SpAtk) and Focus Energy/Roost, passing into Contrary Malamar. "
+            "Malamar uses Superpower to invert stat drops into +1 Atk and +1 Def each turn while inverting boss stats with Topsy-Turvy, "
+            "then Baton Passes massive accumulated stats into Mega Mewtwo Y for a catastrophic Stored Power nuke."
+        ),
+        recommended_moves={
+            "Mew": ["Eerie Impulse", "Focus Energy", "Roost", "Baton Pass"],
+            "Malamar": ["Superpower", "Topsy-Turvy", "Foul Play", "Baton Pass"],
+            "Mega-Mewtwo-Y": ["Stored Power", "Aura Sphere", "Psystrike", "Recover"],
+        },
+    ),
     "solo_mmy_self_setup": TeamPreset(
         name="Solo / Duo Mega-Mewtwo-Y Self-Sufficient Setup (No Passers Required)",
         archetype="stored_power",
@@ -663,21 +684,23 @@ DEFAULT_FALLBACK_STRATEGY = WorldBossStrategy(
     boss_name="Default-WorldBoss",
     archetype="stored_power",
     sweeper="Mega-Gardevoir",
-    sweepers=["Mega-Mewtwo-Y", "Mega-Gardevoir", "Necrozma-Ultra", "Swoobat"],
-    passers=["Swoobat", "Smeargle", "Shiny Smeargle", "Mew", "Poliwrath"],
+    sweepers=["Mega-Mewtwo-Y", "Mega Mewtwo Y", "Mega-Gardevoir", "Mega Gardevoir", "Necrozma-Ultra", "Swoobat"],
+    passers=["Swoobat", "Smeargle", "Shiny Smeargle", "Mew", "Malamar", "Poliwrath"],
     setup_moves=[
-        "Eerie Impulse", "Geomancy", "Calm Mind", "Amnesia", "Agility",
+        "Superpower", "Topsy-Turvy", "Eerie Impulse", "Geomancy", "Calm Mind", "Amnesia", "Agility",
         "Cotton Guard", "Iron Defense", "Octolock", "Shift Gear", "Coil",
-        "Acupressure", "Focus Energy", "Captivate", "Fake Tears",
+        "Acupressure", "Focus Energy", "Captivate", "Fake Tears", "Roost",
         "Psychic Terrain", "Belly Drum", "Defense Curl", "Power Trick", "Baton Pass"
     ],
     attack_moves=[
         "Stored Power", "Expanding Force", "Psystrike", "Psychic",
         "Draining Kiss", "Moonblast", "Aura Sphere", "Focus Blast",
+        "Superpower", "Psycho Cut", "Night Slash", "Foul Play",
         "Rollout", "Power Trip", "Crunch", "Earthquake", "Flamethrower", "Echoed Voice"
     ],
-    emergency_moves=["Draining Kiss", "Milk Drink", "Recover", "Wish", "Rest"],
+    emergency_moves=["Draining Kiss", "Roost", "Milk Drink", "Recover", "Wish", "Rest"],
     team_presets=[
+        MEW_TWO_Y_CHEESE_COMBOS["contrary_superpower_malamar"],
         MEW_TWO_Y_CHEESE_COMBOS["double_pass_meta"],
         GENERAL_CHEESE_PRESETS["gardevoir_stored_power"],
         MEW_TWO_Y_CHEESE_COMBOS["solo_mmy_self_setup"],
@@ -812,22 +835,30 @@ class WorldBossTeamBuilder:
         return presets[0], "Fallback to default meta preset"
 
     @staticmethod
-    def generate_pokemeow_commands(preset: TeamPreset) -> list[str]:
+    def generate_pokemeow_commands(preset: TeamPreset, favorite_team_name: Optional[str] = None) -> list[str]:
         """Generate the exact PokéMeow commands to configure this team."""
         commands: list[str] = []
         if not preset.slots:
             return commands
 
-        # Full team setting
-        commands.append(f";team set {' '.join(preset.slots)}")
+        # If user has a favorite team name (or matches known preset), load via ;team use <name>
+        if favorite_team_name:
+            commands.append(f";team use {favorite_team_name}")
+        elif preset.name.lower() in {"wb", "wb2", "wb3", "mgarde", "mewft", "farm"}:
+            commands.append(f";team use {preset.name.lower()}")
 
-        # Slot-by-slot setting
+        # Slot-by-slot setting using valid PokéMeow syntax: ;team add {pokemon} {slot 1-3}
         for idx, pkmn in enumerate(preset.slots, start=1):
-            commands.append(f";team set {idx} {pkmn}")
+            clean_name = pkmn.replace("Mega-", "mega ").replace("Shiny-", "shiny ").replace("Golden-", "golden ")
+            if "mega " in clean_name.lower():
+                clean_name = clean_name.replace("-", " ")
+            clean_name = clean_name.strip()
+            commands.append(f";team add {clean_name} {idx}")
 
         # Held item assignment
         for pkmn, item in preset.held_items.items():
-            commands.append(f";item hold {item} {pkmn}")
+            clean_pkmn = pkmn.replace("Mega-", "").replace("Shiny-", "").strip()
+            commands.append(f";item hold {item} {clean_pkmn}")
 
         return commands
 
@@ -898,13 +929,24 @@ class WorldBossActionDecider:
         self,
         move_buttons: list[Any] | dict[str, Any],
         switch_buttons: list[Any] | dict[str, Any],
-        ally_hp_percent: float = 100.0,
+        ally_hp_percent: float | None = 100.0,
         is_baton_pass_prompt: bool = False,
     ) -> tuple[Any | None, str, str]:
         """Decide the single best action given current combat buttons and state.
         
         Returns: (button, action_name, reason)
         """
+        # Sanitize ally HP percent to prevent NoneType comparison crashes
+        if ally_hp_percent is None:
+            safe_ally_hp = 100.0
+        else:
+            try:
+                safe_ally_hp = float(ally_hp_percent)
+            except (ValueError, TypeError):
+                safe_ally_hp = 100.0
+
+        danger_threshold = float(getattr(self, "danger_hp_percent", 40.0) or 40.0)
+
         # Ensure we are working with concrete lists of Button objects
         if isinstance(move_buttons, dict):
             move_buttons = list(move_buttons.values())
@@ -928,10 +970,16 @@ class WorldBossActionDecider:
         def _matches(btn: Any, target_name: str) -> bool:
             lbl = str(getattr(btn, "label", "") or "").lower().replace("-", " ")
             cid = str(getattr(btn, "custom_id", "") or "").lower().replace("-", " ")
-            tgt = target_name.lower().replace("-", " ").strip()
+            tgt = str(target_name or "").lower().replace("-", " ").strip()
+            if not tgt:
+                return False
             clean_lbl = re.sub(r"[^\w\s]", " ", lbl).strip()
             clean_lbl = re.sub(r"\s+", " ", clean_lbl)
-            return tgt in lbl or tgt in cid or tgt in clean_lbl or (clean_lbl and clean_lbl in tgt)
+            if tgt in lbl or tgt in cid or tgt in clean_lbl:
+                return True
+            if len(clean_lbl) >= 4 and clean_lbl in tgt:
+                return True
+            return False
 
         # 1. Baton Pass switch prompt
         if is_baton_pass_prompt and switch_buttons:
@@ -943,7 +991,7 @@ class WorldBossActionDecider:
             return switch_buttons[0], f"Switch:{getattr(switch_buttons[0], 'label', '')}", "baton_pass_fallback_switch"
 
         # 2. Emergency Healing if HP drops dangerously low
-        if ally_hp_percent < self.danger_hp_percent and move_buttons:
+        if safe_ally_hp < danger_threshold and move_buttons:
             for em_name in (self.strategy.emergency_moves + ["Recover", "Roost", "Milk Drink", "Wish", "Draining Kiss"]):
                 for btn in move_buttons:
                     if _matches(btn, em_name):
@@ -963,11 +1011,28 @@ class WorldBossActionDecider:
                         return btn, f"Attack:{getattr(btn, 'label', '')}", "sweeper_nuke"
 
         # 4. Passer / Buffer in battle: Setup & Pass
-        for setup_move in self.strategy.setup_moves:
+        # Prioritize stat buffs over Baton Pass so passer actually buffs stats before passing!
+        buff_moves = [m for m in self.strategy.setup_moves if m.lower() != "baton pass"]
+        universal_setup = [
+            "Superpower", "Topsy-Turvy", "Eerie Impulse", "Geomancy", "Calm Mind",
+            "Cotton Guard", "Iron Defense", "Octolock", "Focus Energy", "Belly Drum",
+            "Defense Curl", "Power Trick", "Coil", "Shift Gear", "Amnesia", "Agility"
+        ]
+        for u in universal_setup:
+            if u not in buff_moves:
+                buff_moves.append(u)
+
+        for setup_move in buff_moves:
             for btn in move_buttons:
                 if _matches(btn, setup_move):
                     self.turn_count += 1
                     return btn, f"Setup:{getattr(btn, 'label', '')}", "stat_buff_sequence"
+
+        # Baton pass when stat buffs are finished (or if no other setup move is present)
+        for btn in move_buttons:
+            if _matches(btn, "Baton Pass"):
+                self.turn_count += 1
+                return btn, f"Setup:{getattr(btn, 'label', '')}", "baton_pass_transfer"
 
         # 5. Attack moves fallback (if setup moves exhausted or non-sweeper has attack)
         for atk_name in self.strategy.attack_moves:

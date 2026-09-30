@@ -15,6 +15,7 @@ from discord.ext import commands
 from cogs.startup import Config
 from modules.captcha_solver import solve_captcha
 from modules.anti_detect_log import record_anti_detect_event
+from modules.server_guard import is_message_in_required_server
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -1121,6 +1122,9 @@ class Captcha(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: Message) -> None:
+        if not is_message_in_required_server(self.bot, message):
+            return
+
         if self._extract_manual_resolution_command(message.content or ""):
             handled_resolution = await self._handle_manual_resolution_command(message)
             if handled_resolution:
@@ -1177,6 +1181,9 @@ class Captcha(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_edit(self, before, after: Message) -> None:
+        if not is_message_in_required_server(self.bot, after):
+            return
+
         detection = self._captcha_detection_details(after)
         if detection["matched"]:
             record_anti_detect_event(

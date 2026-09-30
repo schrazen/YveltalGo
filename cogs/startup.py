@@ -77,6 +77,9 @@ class Config:
     quest_auto_battle_enabled: bool = True
     quest_auto_buy_scroll: bool = True
     quest_impossible_keywords: list[str] = field(default_factory=lambda: ["mega chamber", "megachamber"])
+    required_server_id: int = 0
+    world_boss_team_preset: str = "wb"
+    autofight_team_preset: str = "farm"
 
 
 async def get_commands(bot: commands.Bot, channel_id: int) -> (
@@ -219,6 +222,9 @@ class Startup(commands.Cog):
             ("hunting", self.config.hunting_channel_id, getattr(self.bot, "hunting_channel", None)),
             ("fishing", self.config.fishing_channel_id, getattr(self.bot, "fishing_channel", None)),
             ("berry", self.config.berry_channel_id, getattr(self.bot, "berry_channel", None)),
+            ("world_boss", int(getattr(self.config, "world_boss_channel_id", 0) or 0), getattr(self.bot, "world_boss_channel", None)),
+            ("autofight", int(getattr(self.config, "autofight_channel_id", 0) or 0), getattr(self.bot, "autofight_channel", None)),
+            ("catchbot", int(getattr(self.config, "catchbot_channel_id", 0) or 0), getattr(self.bot, "catchbot_channel", None)),
         ]
 
         for label, configured_channel_id, channel in channels_to_validate:
@@ -234,6 +240,12 @@ class Startup(commands.Cog):
                         self.bot.fishing_channel = channel
                     elif label == "berry":
                         self.bot.berry_channel = channel
+                    elif label == "world_boss":
+                        self.bot.world_boss_channel = channel
+                    elif label == "autofight":
+                        self.bot.autofight_channel = channel
+                    elif label == "catchbot":
+                        self.bot.catchbot_channel = channel
                     print(f"[Startup] INFO: Fetched {label} channel {configured_channel_id} for RequiredServerID validation")
                 except Exception:
                     pass
@@ -277,8 +289,20 @@ class Startup(commands.Cog):
             self.bot.hunting_status = "Loading slash commands…"
         if self.config.fishing_channel_id != 0:
             self.bot.fishing_status = "Loading slash commands…"
-        # WorldBoss system is removed from runtime.
-        self.config.world_boss_enabled = False
+        # WorldBoss auto enabled on account startup
+        self.config.world_boss_enabled = True
+        self.bot.world_boss_status = "WorldBoss auto: ON"
+        wb_cog = self.bot.get_cog("WorldBoss")
+        if wb_cog is not None:
+            if (
+                int(getattr(self.config, "world_boss_channel_id", 0) or 0) != 0
+                and hasattr(wb_cog, "adaptive_probe_loop")
+                and not wb_cog.adaptive_probe_loop.is_running()
+            ):
+                try:
+                    wb_cog.adaptive_probe_loop.start()
+                except RuntimeError:
+                    pass
 
         (
             hunt_res,
@@ -366,6 +390,17 @@ class Startup(commands.Cog):
                     await berry_cog.trigger_berry_check(source="startup")
                 except Exception as exc:
                     print(f"Startup warning: initial berry check failed ({exc}).")
+
+        # Ensure World Boss Auto is turned ON whenever account starts
+        self.config.world_boss_enabled = True
+        self.bot.world_boss_status = "WorldBoss auto: ON"
+        wb_cog = self.bot.get_cog("WorldBoss")
+        if wb_cog and hasattr(wb_cog, "adaptive_probe_loop") and not wb_cog.adaptive_probe_loop.is_running():
+            try:
+                wb_cog.adaptive_probe_loop.start()
+                print("[Startup] WorldBoss auto activated & adaptive probe loop started.")
+            except RuntimeError:
+                pass
 
         await self.bot.log()
 

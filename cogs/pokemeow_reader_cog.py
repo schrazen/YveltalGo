@@ -8,6 +8,7 @@ from discord.ext import commands
 
 from cogs.startup import Config
 from modules.pokemeow_reader import POKEMEOW_APP_ID, inspect_and_record_pokemeow_message
+from modules.server_guard import is_message_in_required_server
 
 logger = logging.getLogger("pokegrinder.pokemeow_reader")
 
@@ -36,6 +37,9 @@ class PokeMeowReaderCog(commands.Cog):
         return "general"
 
     def _is_relevant_pokemeow_message(self, message: Message) -> bool:
+        if not is_message_in_required_server(self.bot, message):
+            return False
+
         if getattr(getattr(message, "author", None), "id", 0) != POKEMEOW_APP_ID:
             return False
 

@@ -12,6 +12,7 @@ from modules.cloudflare_indicator import (
     notify_cloudflare_in_channel,
 )
 from modules.captcha_gate import is_captcha_active
+from modules.server_guard import is_message_in_required_server
 
 POKEMEOW_APP_ID = 664508672713424926
 
@@ -200,6 +201,9 @@ class Egg(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: Message) -> None:
+        if not is_message_in_required_server(self.bot, message):
+            return
+
         if not self.config.egg_hatching:
             return
 

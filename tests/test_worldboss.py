@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BASE_DIR))
@@ -305,15 +307,15 @@ class TestWorldBoss(unittest.TestCase):
 
         # 4. Command Generation
         cmds = WorldBossTeamBuilder.generate_pokemeow_commands(MEW_TWO_Y_CHEESE_COMBOS["double_pass_meta"])
-        self.assertIn(";team set Swoobat Smeargle Mega-Mewtwo-Y", cmds)
-        self.assertIn(";team set 1 Swoobat", cmds)
-        self.assertIn(";team set 3 Mega-Mewtwo-Y", cmds)
-        self.assertIn(";item hold Twisted Spoon Mega-Mewtwo-Y", cmds)
+        self.assertTrue(any(";team add" in c for c in cmds))
+        self.assertIn(";team add Swoobat 1", cmds)
+        self.assertTrue(any("Mega-Mewtwo-Y" in c or "mega Mewtwo Y" in c for c in cmds))
+        self.assertIn(";item hold Twisted Spoon Mewtwo-Y", cmds)
 
         # 5. Formatted Guide text
         guide = WorldBossTeamBuilder.format_team_guide("Gigantamax-Pikachu")
         self.assertIn("World Boss Comp Guide", guide)
-        self.assertIn(";team set", guide)
+        self.assertIn(";team add", guide)
 
     def test_kingler_live_battle_scenario_with_dict_and_emojis(self):
         from modules.battle_state import _extract_active_pokemon
@@ -384,6 +386,309 @@ class TestWorldBoss(unittest.TestCase):
         )
         self.assertIsNotNone(btn_bp)
         self.assertEqual(btn_bp.label, "Mega Mewtwo Y")
+
+    def test_embed_vote_and_eternamax_and_defeat_parsing(self):
+        from modules.worldboss_estimator import (
+            parse_eternamax_progress,
+            parse_last_defeated_seconds,
+            parse_vote_progress,
+        )
+        from modules.battle_state import normalize
+
+        # Real message log from user
+        raw_log = """
+        ❌ There is no active World Boss
+        The World Boss spawns once the vote threshold has been met, or if a player activates a :boss_coin: Boss Coin from ;patreon shop.
+
+        World Boss spawns
+        📮 Spawn requirement: 201 / 250 ;votes
+        :7244: Eternamax-Eternatus spawn: 6,795 / 10,000 ;votes
+
+        World Boss Highscores & Stats
+        🏆 World Boss highscores: ;worldboss highscores
+        📊 View World Boss stats: ;worldboss stats
+
+        ⚔️ A World Boss was last defeated 37 minutes ago
+        :world_boss: Spawned by: :pokemeow: [STAFF] :lady: dovahluft
+        👑 Previous MVP: :mystery_trainer: goatwei using :528: :235: :7123: with 💥 819,352 DMG
+        📝 Register for the World Boss in our Official Discord Server•Today at 06:09
+        """
+        blob = normalize(raw_log)
+
+        # 1. Normal vote progress
+        votes = parse_vote_progress(blob)
+        self.assertIsNotNone(votes)
+        self.assertEqual(votes, (201, 250))
+
+        # 2. Eternamax progress
+        et_votes = parse_eternamax_progress(blob)
+        self.assertIsNotNone(et_votes)
+        self.assertEqual(et_votes, (6795, 10000))
+
+        # 3. Last defeated seconds (37 minutes = 2220 seconds)
+        last_def = parse_last_defeated_seconds(blob)
+        self.assertEqual(last_def, 2220)
+
+        # 4. Multi-format last defeated
+        self.assertEqual(parse_last_defeated_seconds("last defeated 1 hour ago"), 3600)
+        self.assertEqual(parse_last_defeated_seconds("last defeated 1 hour and 15 mins ago"), 4500)
+        self.assertEqual(parse_last_defeated_seconds("last defeated 45 seconds ago"), 45)
+
+    def test_collect_all_text_with_mock_embed(self):
+        from unittest.mock import MagicMock
+        from cogs.worldboss import WorldBoss
+        from modules.battle_state import normalize
+        from modules.worldboss_estimator import parse_vote_progress
+
+        msg = MagicMock()
+        msg.content = ";wb"
+        embed = MagicMock()
+        embed.title = "❌ There is no active World Boss"
+        embed.description = "The World Boss spawns once vote threshold has been met."
+        embed.author = None
+
+        field0 = MagicMock()
+        field0.name = "World Boss spawns"
+        field0.value = "📮 Spawn requirement: 238 / 250 ;votes"
+
+        footer = MagicMock()
+        footer.text = "Register for the World Boss in our Official Discord Server"
+        embed.footer = footer
+        embed.fields = [field0]
+        msg.embeds = [embed]
+
+        collected = WorldBoss._collect_all_text(msg)
+        blob = normalize(collected)
+
+        self.assertIn("spawn requirement: 238 / 250 ;votes", blob)
+        self.assertEqual(parse_vote_progress(blob), (238, 250))
+
+    def test_presets_api_endpoint(self):
+        from ui.server import app
+
+        client = app.test_client()
+        resp = client.get("/api/worldboss/presets?boss=Gigantamax-Pikachu")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertTrue(data.get("ok"))
+        self.assertEqual(data.get("target_boss"), "Gigantamax-Pikachu")
+        self.assertIn("recommended", data)
+        self.assertIn("slots", data["recommended"])
+        self.assertGreaterEqual(len(data["recommended"]["slots"]), 1)
+        self.assertIn("commands", data["recommended"])
+        self.assertGreaterEqual(len(data["known_bosses"]), 10)
+
+    def test_dynamic_team_extraction_and_malamar(self):
+        from modules.battle_state import extract_team_members, parse_battle_state
+        from modules.worldboss_strategies import (
+            MEW_TWO_Y_CHEESE_COMBOS,
+            WorldBossActionDecider,
+        )
+        from unittest.mock import MagicMock
+
+        # 1. Verify contrary_superpower_malamar in combos
+        self.assertIn("contrary_superpower_malamar", MEW_TWO_Y_CHEESE_COMBOS)
+        malamar_preset = MEW_TWO_Y_CHEESE_COMBOS["contrary_superpower_malamar"]
+        self.assertIn("Malamar", malamar_preset.slots)
+        self.assertIn("Superpower", malamar_preset.recommended_moves["Malamar"])
+
+        # 2. Test dynamic extraction from real battle text
+        battle_embed_text = (
+            "Gigantamax-Kingler Challenge\n"
+            "Kingler: 9,800,000 / 10,000,000 HP\n\n"
+            "⚔️ Yashi's Team\n"
+            "Mew 0 / 454 • 💥 DMG: 0\n"
+            "Malamar 415 / 415 🥦 • 💥 DMG: 0\n"
+            "Mega Mewtwo Y 407 / 407 🪨 • 💥 DMG: 0\n\n"
+            "Gigantamax-Kingler\n"
+            "Players in battle: 24\n"
+        )
+        team = extract_team_members(battle_embed_text)
+        self.assertEqual(len(team), 3)
+        self.assertEqual(team[0], ("Mew", 0, 454))
+        self.assertEqual(team[1], ("Malamar", 415, 415))
+        self.assertEqual(team[2], ("Mega Mewtwo Y", 407, 407))
+
+        # 3. Test parse_battle_state with mock message
+        msg = MagicMock()
+        msg.content = ""
+        embed = MagicMock()
+        embed.title = "Gigantamax-Kingler Challenge"
+        embed.description = battle_embed_text
+        embed.author = None
+        embed.footer = None
+        embed.fields = []
+        msg.embeds = [embed]
+        msg.components = []
+
+        state = parse_battle_state(msg, ["Mega Mewtwo Y", "Mew"])
+        self.assertEqual(state.active_pokemon, "Malamar")
+        self.assertEqual(state.ally_hp_percent, 100)
+
+        # 4. Decider with Malamar in battle
+        decider = WorldBossActionDecider()
+        decider.update_context("Gigantamax-Kingler", "Malamar")
+        moves = [
+            DummyButton("Superpower", "move:sp"),
+            DummyButton("Topsy-Turvy", "move:tt"),
+            DummyButton("Baton Pass", "move:bp"),
+        ]
+        btn, action, reason = decider.decide_action(moves, [])
+        self.assertIsNotNone(btn)
+        self.assertEqual(btn.label, "Superpower")
+        self.assertEqual(reason, "stat_buff_sequence")
+
+    def test_daily_limit_notice_text_command(self):
+        from unittest.mock import MagicMock
+        from time import time
+        from cogs.hunting import Hunting
+
+        bot = MagicMock()
+        bot.user.id = 871274613227798589
+        bot.user.name = "schrazen"
+        bot.last_hunt = time() - 2.0
+        config = MagicMock()
+        config.hunting_channel_id = 1213138761370574858
+        bot.config = config
+
+        hunting_cog = Hunting(bot)
+
+        # Mock PokéMeow response to text command ';p'
+        msg = MagicMock()
+        msg.author.id = 664508672713424926
+        msg.channel.id = 1213138761370574858
+        msg.interaction = None
+        msg.content = ""
+
+        embed = MagicMock()
+        embed.title = "🙀 Uh oh! You have reached the daily catch limit!"
+        embed.description = (
+            "Support our Patreon to remove this limit!\n\n"
+            "**Your daily encounter limit**: 500 encounters.\n"
+            "Your limit will reset on <t:1790740800:f>"
+        )
+        embed.footer = None
+        embed.fields = []
+        msg.embeds = [embed]
+
+        is_limit = hunting_cog._is_daily_limit_notice(msg)
+        self.assertTrue(is_limit)
+
+    def test_server_guard_isolation_and_firewall(self):
+        from modules.server_guard import (
+            extract_guild_id,
+            is_server_allowed,
+            is_message_in_required_server,
+            install_server_firewall,
+        )
+
+        bot = MagicMock()
+        bot.required_server_id = 873791689939107861
+
+        # Correct server message
+        msg_correct = MagicMock()
+        msg_correct.guild.id = 873791689939107861
+        self.assertTrue(is_server_allowed(bot, msg_correct))
+        self.assertTrue(is_message_in_required_server(bot, msg_correct))
+
+        # Foreign server message
+        msg_foreign = MagicMock()
+        msg_foreign.guild.id = 999999999999999999
+        self.assertFalse(is_server_allowed(bot, msg_foreign))
+        self.assertFalse(is_message_in_required_server(bot, msg_foreign))
+
+        # DM message (no guild)
+        msg_dm = MagicMock()
+        msg_dm.guild = None
+        msg_dm.guild_id = None
+        self.assertFalse(is_server_allowed(bot, msg_dm))
+
+        # Test HTTP client firewall interception
+        bot.http = MagicMock()
+        bot.http.send_message = AsyncMock(return_value="sent")
+        bot.http.interact = AsyncMock(return_value="interacted")
+
+        # Mock channels in bot cache
+        ch_foreign = MagicMock()
+        ch_foreign.guild.id = 999999999999999999
+        ch_authorized = MagicMock()
+        ch_authorized.guild.id = 873791689939107861
+
+        def get_channel_side_effect(cid):
+            if cid == 1395794939161477230:
+                return ch_foreign
+            return ch_authorized
+
+        bot.get_channel.side_effect = get_channel_side_effect
+
+        install_server_firewall(bot)
+
+        # Sending to foreign channel must be blocked and return None
+        res_blocked = asyncio.run(bot.http.send_message(1395794939161477230, params=None))
+        self.assertIsNone(res_blocked)
+
+    def test_worldboss_ignores_foreign_server_and_no_active_boss(self):
+        from cogs.worldboss import WorldBoss
+
+        bot = MagicMock()
+        bot.required_server_id = 873791689939107861
+        bot.world_boss_active = False
+        bot.pause_hunting = False
+        bot.pause_fishing = False
+        bot.log = AsyncMock()
+
+        config = MagicMock()
+        config.world_boss_channel_id = 1488006398255300658
+        config.world_boss_enabled = True
+        config.wb_danger_hp_percent = 40
+        config.wb_dry_run = False
+        config.world_boss_team_preset = "wb"
+        bot.config = config
+
+        wb_cog = WorldBoss(bot)
+
+        # 1. Message from foreign server or wrong channel must be ignored
+        foreign_msg = MagicMock()
+        foreign_msg.guild.id = 1395794939161477230  # Wrong server!
+        foreign_msg.channel.id = 1395794939161477230  # Wrong channel!
+        foreign_msg.content = ";wb"
+        foreign_msg.channel.send = AsyncMock()
+
+        asyncio.run(wb_cog._handle_candidate_message(foreign_msg))
+        foreign_msg.channel.send.assert_not_called()
+
+        # 2. PokéMeow message: "❌ There is no active World Boss"
+        auth_msg = MagicMock()
+        auth_msg.guild.id = 873791689939107861  # Correct server
+        auth_msg.channel.id = 1488006398255300658  # Correct channel
+        auth_msg.author.id = 664508672713424926
+        auth_msg.components = []
+        auth_msg.content = ""
+        auth_msg.channel.send = AsyncMock()
+
+        embed = MagicMock()
+        embed.title = "❌ There is no active World Boss"
+        embed.description = (
+            "The World Boss spawns once the vote threshold has been met.\n\n"
+            "World Boss spawns\n"
+            "📮 Spawn requirement: 62 / 250 ;votes\n"
+            ":7244: Eternamax-Eternatus spawn: 8,406 / 10,000 ;votes\n\n"
+            "⚔️ A World Boss was last defeated 13 minutes ago"
+        )
+        embed.footer.text = "Register for the World Boss in our Official Discord Server"
+        embed.fields = []
+        embed.author.name = "PokéMeow"
+        auth_msg.embeds = [embed]
+
+        asyncio.run(wb_cog._handle_candidate_message(auth_msg))
+
+        # Votes must be accurately recorded
+        self.assertEqual(wb_cog.estimator.current_votes, 62)
+        self.assertEqual(wb_cog.estimator.target_votes, 250)
+        # Must NOT send ;wb fight
+        auth_msg.channel.send.assert_not_called()
+        # World boss active must remain False
+        self.assertFalse(bot.world_boss_active)
 
 
 if __name__ == "__main__":

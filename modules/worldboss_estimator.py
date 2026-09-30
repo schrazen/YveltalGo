@@ -28,11 +28,19 @@ _history_lock = threading.RLock()
 
 # Extended regexes for PokéMeow ;wb embed responses
 _SPAWN_REQUIREMENT_PATTERN = re.compile(
-    r"spawn requirement:\s*(\d[\d,]*)\s*/\s*(\d[\d,]*)\s*;votes",
+    r"(?:spawn requirement|votes?)\s*:\s*(\d[\d,]*)\s*/\s*(\d[\d,]*)\s*;?votes?",
+    re.IGNORECASE,
+)
+_ETERNA_MAX_PATTERN = re.compile(
+    r"eternamax(?:-eternatus)?\s+spawn\s*:\s*(\d[\d,]*)\s*/\s*(\d[\d,]*)\s*;?votes?",
     re.IGNORECASE,
 )
 _LAST_DEFEATED_PATTERN = re.compile(
-    r"last defeated\s+(\d+)\s+(minutes?|hours?|seconds?)\s+ago",
+    r"last defeated\s+(?:approx\.?\s*)?(?:(\d+)\s*h(?:ours?|rs?)?)?\s*(?:(?:and\s*)?(\d+)\s*m(?:inutes?|ins?)?)?\s*(?:(?:and\s*)?(\d+)\s*(?:seconds?|secs?))?\s*ago",
+    re.IGNORECASE,
+)
+_LAST_DEFEATED_SIMPLE_PATTERN = re.compile(
+    r"last defeated\s+(\d+)\s*(minutes?|mins?|hours?|hrs?|seconds?|secs?)\s+ago",
     re.IGNORECASE,
 )
 _FUTURE_COUNTDOWN_PATTERN = re.compile(
@@ -54,21 +62,46 @@ def parse_vote_progress(message_blob: str) -> Optional[Tuple[int, int]]:
         return None
 
 
-def parse_last_defeated_seconds(message_blob: str) -> Optional[int]:
-    """Extract elapsed seconds from 'A World Boss was last defeated 37 minutes ago'."""
-    match = _LAST_DEFEATED_PATTERN.search(message_blob)
+def parse_eternamax_progress(message_blob: str) -> Optional[Tuple[int, int]]:
+    """Extract Eternamax-Eternatus votes from 'Eternamax-Eternatus spawn: 6,795 / 10,000 ;votes'."""
+    match = _ETERNA_MAX_PATTERN.search(message_blob)
     if not match:
         return None
     try:
-        val = int(match.group(1).strip())
-        unit = match.group(2).lower()
-        if "hour" in unit:
-            return val * 3600
-        if "min" in unit:
-            return val * 60
-        return val
+        curr = int(match.group(1).replace(",", "").strip())
+        target = int(match.group(2).replace(",", "").strip())
+        return curr, target
     except Exception:
         return None
+
+
+def parse_last_defeated_seconds(message_blob: str) -> Optional[int]:
+    """Extract elapsed seconds from 'A World Boss was last defeated 37 minutes ago'."""
+    match = _LAST_DEFEATED_PATTERN.search(message_blob)
+    if match and any(match.groups()):
+        try:
+            h = int(match.group(1)) if match.group(1) else 0
+            m = int(match.group(2)) if match.group(2) else 0
+            s = int(match.group(3)) if match.group(3) else 0
+            total = h * 3600 + m * 60 + s
+            if total > 0:
+                return total
+        except Exception:
+            pass
+
+    simple_match = _LAST_DEFEATED_SIMPLE_PATTERN.search(message_blob)
+    if simple_match:
+        try:
+            val = int(simple_match.group(1).strip())
+            unit = simple_match.group(2).lower()
+            if "h" in unit:
+                return val * 3600
+            if "m" in unit:
+                return val * 60
+            return val
+        except Exception:
+            return None
+    return None
 
 
 def parse_future_boss_seconds(message_blob: str) -> Optional[int]:
@@ -116,6 +149,7 @@ class WorldBossEstimator:
         # Vote tracking telemetry
         self.current_votes: int = 0
         self.target_votes: int = 250
+        self.eternamax_votes: Tuple[int, int] = (0, 10000)
         self.last_vote_update_time: float = 0.0
         self.vote_samples: List[Tuple[float, int]] = []  # [(timestamp, current_votes)]
         self.vote_velocity_per_min: float = 4.0  # default assumption ~4 votes/min
@@ -137,6 +171,9 @@ class WorldBossEstimator:
                     self.last_probe_time = float(data.get("last_probe_time", 0.0) or 0.0)
                     self.current_votes = int(data.get("current_votes", 0) or 0)
                     self.target_votes = int(data.get("target_votes", 250) or 250)
+                    raw_et = data.get("eternamax_votes", [0, 10000])
+                    if isinstance(raw_et, (list, tuple)) and len(raw_et) == 2:
+                        self.eternamax_votes = (int(raw_et[0] or 0), int(raw_et[1] or 10000))
                     self.vote_velocity_per_min = float(data.get("vote_velocity_per_min", 4.0) or 4.0)
                     self._recalculate_interval()
             except Exception as exc:
@@ -154,6 +191,7 @@ class WorldBossEstimator:
                 "last_probe_time": self.last_probe_time,
                 "current_votes": self.current_votes,
                 "target_votes": self.target_votes,
+                "eternamax_votes": list(self.eternamax_votes),
                 "vote_velocity_per_min": self.vote_velocity_per_min,
                 "updated_at_utc": datetime.now(timezone.utc).isoformat(),
             }
@@ -183,11 +221,18 @@ class WorldBossEstimator:
         total_weight = sum(weights)
         self.learned_interval = round(weighted_sum / total_weight, 1)
 
-    def record_vote_status(self, current_votes: int, target_votes: int) -> None:
+    def record_vote_status(
+        self,
+        current_votes: int,
+        target_votes: int,
+        eternamax_data: Optional[Tuple[int, int]] = None,
+    ) -> None:
         """Process updated vote count from PokéMeow ;wb response."""
         now = time.time()
         self.current_votes = current_votes
         self.target_votes = target_votes or 250
+        if eternamax_data is not None:
+            self.eternamax_votes = eternamax_data
         self.last_vote_update_time = now
 
         # Add sample and keep samples within last 20 minutes
@@ -310,11 +355,22 @@ class WorldBossEstimator:
         """Determine whether the bot should send a ;wb maintenance probe right now."""
         now = now or time.time()
 
+        # Threshold already met or exceeded: probe/sign in immediately!
+        if self.target_votes > 0 and self.current_votes >= self.target_votes:
+            self.current_stage = f"Threshold Met ({self.current_votes}/{self.target_votes})"
+            if not self.last_probe_time or (now - self.last_probe_time) >= 20.0:
+                return True, f"Vote threshold reached ({self.current_votes}/{self.target_votes}) - sign in now!"
+            return False, "Awaiting threshold spawn cycle"
+
+        votes_needed = max(0, self.target_votes - self.current_votes) if self.current_votes > 0 else 999
+
         # Hard rate-limit floor
         min_cooldown = MIN_PROBE_COOLDOWN_SECONDS
-        # If votes are super close to target (>= 240 / 250), allow faster probes (45s)
-        votes_needed = max(0, self.target_votes - self.current_votes) if self.current_votes > 0 else 999
-        if votes_needed > 15:
+        if self.current_votes == 0 and self.last_spawn_time == 0.0:
+            min_cooldown = 35.0
+        elif votes_needed <= 12:
+            min_cooldown = 25.0
+        elif votes_needed > 25:
             min_cooldown = 90.0
 
         if self.last_probe_time and (now - self.last_probe_time) < min_cooldown:
@@ -335,30 +391,30 @@ class WorldBossEstimator:
             # Imminent: within 12 votes of spawning (spawn in ~1-2 mins)
             if votes_needed <= 12:
                 self.current_stage = f"Imminent ({self.current_votes}/{self.target_votes})"
-                effective_interval = 60.0 + self._jitter
+                effective_interval = 30.0 + self._jitter
                 if (now - self.last_probe_time) >= effective_interval:
                     return True, f"Imminent spawn probe ({votes_needed} votes left)"
                 return False, f"Imminent pacing ({int(effective_interval - (now - self.last_probe_time))}s left)"
 
-            # Approaching: within 35 votes of spawning (spawn in ~5-7 mins)
+            # Approaching: within 35 votes of spawning (spawn in ~3-5 mins)
             if votes_needed <= 35:
                 self.current_stage = f"Approaching ({self.current_votes}/{self.target_votes})"
-                effective_interval = 150.0 + self._jitter  # ~2.5 mins
+                effective_interval = 75.0 + self._jitter  # ~1.2 mins
                 if (now - self.last_probe_time) >= effective_interval:
                     return True, f"Approaching spawn probe ({votes_needed} votes left)"
                 return False, f"Approaching pacing ({int(effective_interval - (now - self.last_probe_time))}s left)"
 
-            # Mid-Progress: within 75 votes of spawning (spawn in ~15 mins)
+            # Mid-Progress: within 75 votes of spawning (spawn in ~10-15 mins)
             if votes_needed <= 75:
                 self.current_stage = f"Mid-Progress ({self.current_votes}/{self.target_votes})"
-                effective_interval = 360.0 + self._jitter  # ~6 mins
+                effective_interval = 180.0 + self._jitter  # ~3 mins
                 if (now - self.last_probe_time) >= effective_interval:
                     return True, f"Mid-progress probe ({votes_needed} votes left)"
                 return False, f"Mid-progress pacing ({int(effective_interval - (now - self.last_probe_time))}s left)"
 
-            # Early Stage: more than 75 votes needed (spawn in ~25-45 mins)
+            # Early Stage: more than 75 votes needed
             self.current_stage = f"Early Accumulation ({self.current_votes}/{self.target_votes})"
-            effective_interval = 600.0 + self._jitter  # ~10 mins
+            effective_interval = 360.0 + self._jitter  # ~6 mins
             if (now - self.last_probe_time) >= effective_interval:
                 return True, f"Early accumulation check ({votes_needed} votes left)"
             return False, f"Early pacing ({int(effective_interval - (now - self.last_probe_time))}s left)"
@@ -383,13 +439,13 @@ class WorldBossEstimator:
             rem_vig = int(effective_interval - (now - self.last_probe_time))
             return False, f"Vigilance pacing ({rem_vig}s remaining)"
 
-        # Priority 4: No history yet — initial discovery probe
+        # Priority 4: No history yet — rapid initial discovery probe (every 45s until calibrated)
         self.current_stage = "Initial Discovery"
-        effective_interval = BASELINE_INTERVAL_SECONDS + self._jitter
+        effective_interval = 45.0 + self._jitter
         if not self.last_probe_time or (now - self.last_probe_time) >= effective_interval:
             return True, "Initial discovery probe"
         rem_base = int(effective_interval - (now - self.last_probe_time))
-        return False, f"Discovery pacing ({rem_base // 60}m remaining)"
+        return False, f"Discovery pacing ({rem_base}s remaining)"
 
     def get_status_summary(self, now: float | None = None) -> str:
         """Generate human-readable status text for Discord commands and logging."""
@@ -413,5 +469,10 @@ class WorldBossEstimator:
         else:
             interval_part = "Interval: default"
 
-        return f"Stage: {self.current_stage} | ETA: ~{eta_mins:.1f}m | {votes_part} | {last_boss_part} | {interval_part}"
+        if getattr(self, "eternamax_votes", None) and self.eternamax_votes[0] > 0:
+            et_part = f" | Eternamax: {self.eternamax_votes[0]}/{self.eternamax_votes[1]}"
+        else:
+            et_part = ""
+
+        return f"Stage: {self.current_stage} | ETA: ~{eta_mins:.1f}m | {votes_part}{et_part} | {last_boss_part} | {interval_part}"
 

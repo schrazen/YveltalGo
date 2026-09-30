@@ -113,8 +113,39 @@ def _extract_action_buttons(message: Message, known_team_names: list[str] | None
     return move_buttons, switch_buttons
 
 
+def extract_team_members(raw_text: str) -> list[tuple[str, int, int]]:
+    """Extract (pokemon_name, curr_hp, max_hp) for all allies from PokéMeow team block."""
+    team = []
+    # PokéMeow format e.g.:
+    # Mew 454 / 454 • 💥 DMG: 0
+    # Malamar 415 / 415 🥦 • 💥 DMG: 0
+    # Mega Mewtwo Y 407 / 407 🪨 • 💥 DMG: 0
+    for match in re.finditer(r"([a-zA-Z0-9\- ]+?)\s+(\d+)\s*/\s*(\d+)", raw_text):
+        cand = match.group(1).strip()
+        clean = re.sub(r"^[^a-zA-Z0-9]+", "", cand).strip()
+        if not clean or any(ign in clean.lower() for ign in ["health", "players", "boss", "challenge", "dmg", "until", "reward"]):
+            continue
+        try:
+            curr_hp = int(match.group(2))
+            max_hp = int(match.group(3))
+            # Typical max HP of pokemon is between 50 and 1500. Bosses have 1,000,000 to 10,000,000.
+            if max_hp < 2500:
+                team.append((clean, curr_hp, max_hp))
+        except (ValueError, TypeError):
+            continue
+    return team
+
+
 def _extract_active_pokemon(raw_text: str, known_names: list[str]) -> str | None:
-    # 1. Check for PokéMeow team status block: "<Name> <CurrHP> / <MaxHP>"
+    # 1. Dynamic team members from PokéMeow team HP block
+    team = extract_team_members(raw_text)
+    if team:
+        for name, curr_hp, max_hp in team:
+            if curr_hp > 0:
+                return name
+        return team[0][0]
+
+    # 2. Check for PokéMeow team status block against known_names
     team_matches = re.findall(
         r"([a-zA-Z0-9\- ]+?)\s+(\d+)\s*/\s*(\d+)",
         raw_text,
@@ -127,7 +158,7 @@ def _extract_active_pokemon(raw_text: str, known_names: list[str]) -> str | None
                 if int(curr_hp) > 0:
                     return kn
 
-    # 2. Fallback to standard check
+    # 3. Fallback to standard check
     lowered = normalize(raw_text)
     for name in known_names:
         if normalize(name) in lowered:
@@ -139,7 +170,24 @@ def _extract_active_pokemon(raw_text: str, known_names: list[str]) -> str | None
 def parse_battle_state(message: Message, known_team_names: list[str]) -> ParsedBattleState:
     raw_text = _collect_text(message)
     boss_hp, ally_hp = _extract_hp(raw_text)
-    move_buttons, switch_buttons = _extract_action_buttons(message, known_team_names)
+    
+    dynamic_team = extract_team_members(raw_text)
+    combined_team_names = list(known_team_names or [])
+    for name, curr, mx in dynamic_team:
+        if name not in combined_team_names:
+            combined_team_names.append(name)
+
+    active_pokemon = _extract_active_pokemon(raw_text, combined_team_names)
+    
+    # Calculate exact ally HP percent from team block if available
+    if dynamic_team and active_pokemon:
+        for name, curr, mx in dynamic_team:
+            if name.lower() == active_pokemon.lower() and mx > 0:
+                calculated_percent = int(round((curr / mx) * 100))
+                ally_hp = max(0, min(100, calculated_percent))
+                break
+
+    move_buttons, switch_buttons = _extract_action_buttons(message, combined_team_names)
     lowered = normalize(raw_text)
 
     terminal_win = (
@@ -154,7 +202,7 @@ def parse_battle_state(message: Message, known_team_names: list[str]) -> ParsedB
 
     return ParsedBattleState(
         raw_text=raw_text,
-        active_pokemon=_extract_active_pokemon(raw_text, known_team_names),
+        active_pokemon=active_pokemon,
         boss_hp_percent=boss_hp,
         ally_hp_percent=ally_hp,
         move_buttons=move_buttons,

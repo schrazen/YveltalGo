@@ -27,6 +27,7 @@ from modules.rare_catch_log import record_rare_catch_event
 from modules.retrieved_item_log import record_retrieved_item_event
 from modules.pokemeow_reader import inspect_and_record_pokemeow_message
 from modules.captcha_gate import is_captcha_active, is_in_battle
+from modules.server_guard import is_message_in_required_server
 
 POKEMEOW_APP_ID = 664508672713424926
 
@@ -520,12 +521,6 @@ class Hunting(commands.Cog):
         if message.channel.id != self.config.hunting_channel_id:
             return False
 
-        is_owned_interaction = bool(
-            message.interaction and message.interaction.user == self.bot.user
-        )
-        if not is_owned_interaction and not self._is_message_for_this_bot(message):
-            return False
-
         text_parts = [message.content or ""]
         for embed in message.embeds:
             text_parts.extend(
@@ -537,12 +532,21 @@ class Hunting(commands.Cog):
             )
 
         haystack = " ".join(text_parts).lower()
-        return (
+        has_limit_text = (
             "you have reached your daily catch limit" in haystack
             or "you have reached your daily encounter limit" in haystack
             or "you have reached the daily catch limit" in haystack
             or "you have reached the daily encounter limit" in haystack
+            or ("daily encounter limit" in haystack and "500 encounters" in haystack)
         )
+        if not has_limit_text:
+            return False
+
+        is_owned_interaction = bool(
+            message.interaction and message.interaction.user == self.bot.user
+        )
+        recent_hunt = (time() - float(getattr(self.bot, "last_hunt", 0.0) or 0.0)) < 25.0
+        return is_owned_interaction or self._is_message_for_this_bot(message) or recent_hunt
 
     async def _handle_daily_limit(self) -> None:
         record_anti_detect_event(
@@ -609,6 +613,9 @@ class Hunting(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: Message) -> None:
+        if not is_message_in_required_server(self.bot, message):
+            return
+
         if self._is_daily_limit_notice(message):
             await self._handle_daily_limit()
             return
@@ -793,6 +800,9 @@ class Hunting(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: Message, after: Message) -> None:
+        if not is_message_in_required_server(self.bot, after):
+            return
+
         if is_captcha_active(self.bot, self.config.hunting_channel_id) or self.bot.pause_hunting:
             return
 

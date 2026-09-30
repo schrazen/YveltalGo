@@ -15,6 +15,7 @@ from modules.anti_detect_log import record_anti_detect_event
 from modules.cloudflare_indicator import is_cloudflare_1015_error, notify_cloudflare_in_channel
 from modules.pokemeow_reader import inspect_and_record_pokemeow_message
 from modules.captcha_gate import is_captcha_active, is_in_battle
+from modules.server_guard import is_message_in_required_server
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 _fishes_file = BASE_DIR / "data" / "fishes.json"
@@ -281,6 +282,9 @@ class Fishing(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: Message) -> None:
+        if not is_message_in_required_server(self.bot, message):
+            return
+
         if is_captcha_active(self.bot, self.config.fishing_channel_id) or self.bot.pause_fishing:
             return
 
@@ -365,6 +369,9 @@ class Fishing(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: Message, after: Message) -> None:
+        if not is_message_in_required_server(self.bot, after):
+            return
+
         if is_captcha_active(self.bot, self.config.fishing_channel_id) or self.bot.pause_fishing:
             return
 

@@ -12,6 +12,7 @@ from discord import Message, InvalidData
 from discord.ext import commands, tasks
 
 from modules.captcha_gate import is_captcha_active, is_in_battle
+from modules.server_guard import is_message_in_required_server
 from modules.smart_advisor import smart_advisor
 
 if TYPE_CHECKING:
@@ -295,13 +296,21 @@ class SmartAdvisorCog(commands.Cog):
                 return
 
             if action == "PAUSE_ALERT":
-                self.consecutive_stalls += 1
-                if self.consecutive_stalls >= 2:
-                    print("[SmartAdvisor] Bot paused per AI diagnosis to prevent ban / error.")
-                    self.bot.pause_hunting = True
-                    self.bot.hunting_status = f"Paused ({diagnosis.get('reason', 'AI alert')})"
-                    await self.bot.log()
-                    return
+                reason = diagnosis.get("reason", "AI alert")
+                diag_text = diagnosis.get("diagnosis", "").lower()
+                print(f"[SmartAdvisor] Bot hunting paused per AI diagnosis: {reason}")
+                self.bot.pause_hunting = True
+                if "daily" in diag_text or "limit" in diag_text or "500" in diag_text:
+                    self.bot.limit = True
+                    self.bot.hunting_status = "Encounter limit reached!"
+                    # Switch to fishing if available
+                    if getattr(self.bot.config, "fishing_channel_id", 0) != 0 and not getattr(self.bot, "fishing_captcha_active", False):
+                        self.bot.pause_fishing = False
+                        self.bot.fishing_status = "Grinding..."
+                else:
+                    self.bot.hunting_status = f"Paused ({reason})"
+                await self.bot.log()
+                return
 
             # Phase 4: Controlled Safe Kickstart Pulse
             # -------------------------------------------------------------
@@ -320,12 +329,21 @@ class SmartAdvisorCog(commands.Cog):
                 await self.bot.log()
                 return
 
-            # Send safe pulse command to wake up the bot cycle
-            pulse_cmd = ";p"
-            if getattr(self.bot.config, "hunting_channel_id", 0) != 0:
+            # Determine pulse command honoring AI recommendation & limits
+            target_cmd = str(diagnosis.get("target", "") or "").strip()
+            if target_cmd in {";fish spawn", ";p", ";q", ";wb"}:
+                pulse_cmd = target_cmd
+            elif getattr(self.bot, "pause_hunting", False) or getattr(self.bot, "limit", False):
+                if getattr(self.bot.config, "fishing_channel_id", 0) != 0:
+                    pulse_cmd = ";fish spawn"
+                else:
+                    return
+            elif getattr(self.bot.config, "hunting_channel_id", 0) != 0:
                 pulse_cmd = ";p"
             elif getattr(self.bot.config, "fishing_channel_id", 0) != 0:
                 pulse_cmd = ";fish spawn"
+            else:
+                pulse_cmd = ";p"
 
             print(f"[SmartAdvisor] Dispatching recovery pulse '{pulse_cmd}' to kickstart bot...")
             await asyncio.sleep(randint(1000, 2500) / 1000.0)
@@ -351,6 +369,21 @@ class SmartAdvisorCog(commands.Cog):
 
     async def _process_message_for_unhandled_components(self, message: Message) -> None:
         if not message or not message.channel:
+            return
+
+        if not is_message_in_required_server(self.bot, message):
+            return
+
+        channel_id = int(getattr(message.channel, "id", 0) or 0)
+        allowed_channels = {
+            int(getattr(getattr(self.bot, "config", None), "hunting_channel_id", 0) or 0),
+            int(getattr(getattr(self.bot, "config", None), "fishing_channel_id", 0) or 0),
+            int(getattr(getattr(self.bot, "config", None), "autofight_channel_id", 0) or 0),
+            int(getattr(getattr(self.bot, "config", None), "world_boss_channel_id", 0) or 0),
+            int(getattr(getattr(self.bot, "config", None), "berry_channel_id", 0) or 0),
+        }
+        allowed_channels.discard(0)
+        if allowed_channels and channel_id not in allowed_channels:
             return
 
         # Check if message is a user command to inspect AI status
